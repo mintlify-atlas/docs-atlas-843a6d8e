@@ -9,7 +9,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Solar Power
 
-<ParamField path="sensor.energy_control_pro_solar_power" type="sensor">
+<ParamField path="sensor.energy_control_pro_solar_w" type="sensor">
   Real-time solar panel power generation.
 
   <ResponseField name="key" type="string" default="solar_w">
@@ -35,7 +35,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Load Power
 
-<ParamField path="sensor.energy_control_pro_load_power" type="sensor">
+<ParamField path="sensor.energy_control_pro_load_w" type="sensor">
   Current household power consumption.
 
   <ResponseField name="key" type="string" default="load_w">
@@ -61,7 +61,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Surplus Power
 
-<ParamField path="sensor.energy_control_pro_surplus_power" type="sensor">
+<ParamField path="sensor.energy_control_pro_surplus_w" type="sensor">
   Available excess solar power after household consumption.
 
   <ResponseField name="key" type="string" default="surplus_w">
@@ -87,7 +87,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Grid Import Power
 
-<ParamField path="sensor.energy_control_pro_grid_import_power" type="sensor">
+<ParamField path="sensor.energy_control_pro_grid_import_w" type="sensor">
   Power currently being imported from the electrical grid.
 
   <ResponseField name="key" type="string" default="grid_import_w">
@@ -113,7 +113,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Grid Export Power
 
-<ParamField path="sensor.energy_control_pro_grid_export_power" type="sensor">
+<ParamField path="sensor.energy_control_pro_grid_export_w" type="sensor">
   Power currently being exported to the electrical grid.
 
   <ResponseField name="key" type="string" default="grid_export_w">
@@ -153,13 +153,13 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
   </ResponseField>
 
   <ResponseField name="native_value" type="string">
-    Current state (e.g., "importing", "exporting", "self_consuming")
+    Current state: "importing", "exporting", or "balanced"
   </ResponseField>
 </ParamField>
 
 ### Export Duration
 
-<ParamField path="sensor.energy_control_pro_export_duration" type="sensor">
+<ParamField path="sensor.energy_control_pro_export_duration_min" type="sensor">
   Duration of continuous grid export.
 
   <ResponseField name="key" type="string" default="export_duration_min">
@@ -189,7 +189,7 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
 
 ### Import Duration
 
-<ParamField path="sensor.energy_control_pro_import_duration" type="sensor">
+<ParamField path="sensor.energy_control_pro_import_duration_min" type="sensor">
   Duration of continuous grid import.
 
   <ResponseField name="key" type="string" default="import_duration_min">
@@ -233,21 +233,47 @@ Energy Control Pro provides 9 sensor entities that monitor your solar power syst
   </ResponseField>
 
   <ResponseField name="native_value" type="string">
-    Description of the last optimization action performed
+    Description of the last optimization action performed (e.g., "Turned ON switch.boiler (surplus 1100W for 10 min)")
   </ResponseField>
 </ParamField>
 
 ## Entity ID Format
 
-All sensor entity IDs follow the pattern: `sensor.energy_control_pro_{sensor_name}`
+All sensor entity IDs follow the pattern: `sensor.energy_control_pro_{key}` where `{key}` is the internal sensor identifier.
 
-Example entity IDs:
-- `sensor.energy_control_pro_solar_power`
-- `sensor.energy_control_pro_load_power`
-- `sensor.energy_control_pro_surplus_power`
-- `sensor.energy_control_pro_grid_import_power`
-- `sensor.energy_control_pro_grid_export_power`
-- `sensor.energy_control_pro_energy_state`
-- `sensor.energy_control_pro_export_duration`
-- `sensor.energy_control_pro_import_duration`
-- `sensor.energy_control_pro_last_action`
+Complete list of sensor entity IDs:
+- `sensor.energy_control_pro_solar_w` - Solar power generation
+- `sensor.energy_control_pro_load_w` - Household load consumption
+- `sensor.energy_control_pro_surplus_w` - Available surplus power
+- `sensor.energy_control_pro_grid_import_w` - Grid import power
+- `sensor.energy_control_pro_grid_export_w` - Grid export power
+- `sensor.energy_control_pro_energy_state` - Current energy state
+- `sensor.energy_control_pro_export_duration_min` - Export duration
+- `sensor.energy_control_pro_import_duration_min` - Import duration
+- `sensor.energy_control_pro_last_action` - Last optimization action
+
+## Usage Example
+
+```yaml
+# Use in automations or templates
+automation:
+  - alias: "Alert on high export"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.energy_control_pro_export_duration_min
+        above: 15
+    action:
+      - service: notify.mobile_app
+        data:
+          message: "Solar export exceeding 15 minutes: {{ states('sensor.energy_control_pro_grid_export_w') }}W"
+```
+
+## Update Interval
+
+All sensors update every **10 seconds** as configured in the coordinator (coordinator.py:90-95).
+
+## Related
+
+- [Switches](/api/switches) - Control optimization runtime
+- [Configuration Options](/api/configuration-options) - Configure thresholds
+- [Energy Monitoring](/features/energy-monitoring) - Detailed monitoring documentation
