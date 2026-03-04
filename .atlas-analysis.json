@@ -1,0 +1,96 @@
+{
+  "projectType": "general",
+  "projectName": "Energy Control Pro",
+  "projectDescription": "Home Assistant integration to optimize solar self-consumption by detecting surplus/import and automatically controlling loads.",
+  "theme": "aspen",
+  "primaryColor": "#FF9800",
+  "lightColor": "#FFB74D",
+  "darkColor": "#F57C00",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/energy-monitoring",
+              "features/load-optimization",
+              "features/alerts",
+              "features/simulation-mode"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/real-mode-setup",
+              "guides/optimization-strategies",
+              "guides/dashboard-setup",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Components",
+            "pages": [
+              "api/sensors",
+              "api/switches",
+              "api/selects"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "api/configuration-options",
+              "api/optimization-config"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time solar/load/grid balance monitoring with 10-second updates",
+    "Automatic load control with up to 3 configurable devices and priority logic",
+    "Persistent alerts for sustained export and import conditions",
+    "Multiple optimization strategies (maximize self-consumption, avoid grid import, balanced)",
+    "Built-in simulation mode with 3 profiles for testing without hardware",
+    "Anti-flapping protections with configurable min_on_time and cooldown periods",
+    "UI-based configuration through Home Assistant (no YAML required)",
+    "Importable dashboard templates for energy visualization"
+  ],
+  "publicApiSurface": [
+    "sensor.energy_control_pro_solar_power",
+    "sensor.energy_control_pro_load_power",
+    "sensor.energy_control_pro_surplus_power",
+    "sensor.energy_control_pro_grid_import_power",
+    "sensor.energy_control_pro_grid_export_power",
+    "sensor.energy_control_pro_energy_state",
+    "sensor.energy_control_pro_export_duration",
+    "sensor.energy_control_pro_import_duration",
+    "sensor.energy_control_pro_last_action",
+    "switch.energy_control_pro_optimization",
+    "select.energy_control_pro_strategy",
+    "EnergyControlProCoordinator",
+    "LoadConfig",
+    "LoadRuntime",
+    "EngineAction",
+    "decide_turn_on()",
+    "decide_turn_off()",
+    "calculate_balance()",
+    "derive_energy_state()",
+    "simulate()"
+  ]
+}
