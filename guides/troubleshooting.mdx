@@ -1,0 +1,653 @@
+---
+title: Troubleshooting
+description: Common issues, error messages, and solutions for Energy Control Pro
+---
+
+This guide covers common problems with Energy Control Pro and their solutions, based on actual error codes and validation logic from the integration.
+
+## Entity Configuration Issues
+
+### Entities not found during setup
+
+**Error code**: `real_entity_not_found`
+
+**When it occurs**: During initial setup or reconfiguration when simulation mode is disabled.
+
+**Validation code** (from `config_flow.py:340-342`):
+
+```python
+state = hass.states.get(entity_id)
+if state is None:
+    return "real_entity_not_found"
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify entity exists in Home Assistant">
+    1. Go to **Developer Tools → States**
+    2. Search for your solar and load entity IDs
+    3. Confirm they appear in the list
+  </Step>
+  
+  <Step title="Check entity domain">
+    Solar and load entities must be sensors:
+    - ✓ `sensor.solar_power`
+    - ✗ `switch.solar_power`
+    - ✗ `input_number.solar_power`
+  </Step>
+  
+  <Step title="Ensure integration providing entities is loaded">
+    If your entities come from another integration (e.g., SolarEdge, Fronius), verify that integration is configured and working.
+  </Step>
+  
+  <Step title="Restart Home Assistant if entity is new">
+    Newly created template sensors or entities from just-installed integrations may require a restart.
+  </Step>
+</Steps>
+
+### Entity state unavailable
+
+**Error code**: `real_entity_unavailable`
+
+**When it occurs**: Entity exists but is in `unknown` or `unavailable` state.
+
+**Validation code** (from `config_flow.py:343-344`):
+
+```python
+if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+    return "real_entity_unavailable"
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Check source entity status">
+    Open **Developer Tools → States** and look at the entity state. If it shows "unavailable" or "unknown", the problem is with the source integration, not Energy Control Pro.
+  </Step>
+  
+  <Step title="Verify hardware connectivity">
+    - Check that your inverter or energy monitor is online
+    - Ensure network connectivity to the device
+    - Review the source integration's logs for errors
+  </Step>
+  
+  <Step title="Wait for entity to update">
+    Some integrations take time to populate data after Home Assistant starts. Wait 1-2 minutes and try again.
+  </Step>
+  
+  <Step title="Test with a different entity temporarily">
+    Create a template sensor with a static value to test if Energy Control Pro works:
+    
+    ```yaml
+    template:
+      - sensor:
+          - name: "Test Solar Power"
+            unit_of_measurement: "W"
+            state: "1500"
+    ```
+  </Step>
+</Steps>
+
+### Entity value not numeric
+
+**Error code**: `real_entity_not_numeric`
+
+**When it occurs**: Entity exists and is available, but the state is not a number.
+
+**Validation code** (from `config_flow.py:345-348`):
+
+```python
+try:
+    float(state.state)
+except (TypeError, ValueError):
+    return "real_entity_not_numeric"
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Check current state value">
+    In **Developer Tools → States**, look at what the entity's state shows:
+    - ✓ `1500` (valid)
+    - ✓ `2.5` (valid)
+    - ✗ `On` (invalid)
+    - ✗ `Producing` (invalid)
+    - ✗ `--` (invalid)
+  </Step>
+  
+  <Step title="Use the correct entity">
+    Some integrations provide multiple entities. Make sure you're selecting the power sensor, not a status or mode sensor.
+    
+    Example from SolarEdge:
+    - ✓ Use: `sensor.solaredge_current_power`
+    - ✗ Don't use: `sensor.solaredge_status`
+  </Step>
+  
+  <Step title="Create a template sensor if needed">
+    If your entity returns non-numeric values, convert it:
+    
+    ```yaml
+    template:
+      - sensor:
+          - name: "Solar Power Numeric"
+            unit_of_measurement: "W"
+            state: "{{ states('sensor.original_solar') | float(0) }}"
+    ```
+  </Step>
+</Steps>
+
+### Invalid unit of measurement
+
+**Error code**: `real_entity_unit_not_w`
+
+**When it occurs**: Entity is numeric but doesn't report power in watts (W) or kilowatts (kW).
+
+**Validation code** (from `config_flow.py:350-352`):
+
+```python
+unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+if unit and unit not in (UnitOfPower.WATT, UnitOfPower.KILO_WATT):
+    return "real_entity_unit_not_w"
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Check entity unit">
+    In **Developer Tools → States**, look at the entity's attributes for `unit_of_measurement`:
+    - ✓ `W` (watts)
+    - ✓ `kW` (kilowatts)
+    - ✗ `A` (amps)
+    - ✗ `V` (volts)
+    - ✗ `kWh` (energy, not power)
+  </Step>
+  
+  <Step title="Find the correct power sensor">
+    Many energy systems provide multiple sensors. Look for one that specifically measures instantaneous power, not cumulative energy.
+    
+    - Power sensors update frequently and show current load
+    - Energy sensors accumulate over time and increase continuously
+  </Step>
+  
+  <Step title="Convert units with a template">
+    If you only have current (A) and voltage (V), calculate power:
+    
+    ```yaml
+    template:
+      - sensor:
+          - name: "Solar Power"
+            unit_of_measurement: "W"
+            state: >-
+              {% set current = states('sensor.solar_current') | float(0) %}
+              {% set voltage = states('sensor.solar_voltage') | float(230) %}
+              {{ (current * voltage) | round(0) }}
+    ```
+  </Step>
+</Steps>
+
+### Real mode requires both entities
+
+**Error code**: `real_entities_required`
+
+**When it occurs**: Simulation mode is disabled, but one or both required entities are not configured.
+
+**Validation code** (from `config_flow.py:325-330`):
+
+```python
+def _real_mode_missing_entities(user_input: dict[str, Any]) -> bool:
+    if user_input.get(CONF_SIMULATION, True):
+        return False
+    return not user_input.get(CONF_SOLAR_POWER_ENTITY) or not user_input.get(CONF_LOAD_POWER_ENTITY)
+```
+
+**Solution**:
+
+<Steps>
+  <Step title="Provide both required entities">
+    When disabling simulation, you must configure:
+    - Solar Power Entity
+    - Load Power Entity
+    
+    You cannot use real mode with only one.
+  </Step>
+  
+  <Step title="Or re-enable simulation">
+    If you don't have both sensors available, keep simulation mode enabled and use one of the included profiles:
+    - `sunny_day`
+    - `cloudy_day`
+    - `winter_day`
+  </Step>
+</Steps>
+
+## Sensor Update Issues
+
+### Sensors not updating
+
+**Symptom**: Sensors exist but show old values or never change.
+
+**Common causes**:
+
+1. **Integration not loaded**
+2. **Source entities not updating**
+3. **Configuration error preventing updates**
+4. **Coordinator in failed state**
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify integration is loaded">
+    1. Go to **Settings → Devices & Services**
+    2. Find Energy Control Pro
+    3. Status should show "Configured", not "Failed" or "Setup error"
+  </Step>
+  
+  <Step title="Check update interval">
+    Energy Control Pro updates every 10 seconds (defined in `coordinator.py:94`).
+    
+    ```python
+    update_interval=timedelta(seconds=10)
+    ```
+    
+    Wait at least 10 seconds after making changes.
+  </Step>
+  
+  <Step title="Review logs for errors">
+    1. Go to **Settings → System → Logs**
+    2. Filter for `energy_control_pro`
+    3. Look for errors like:
+       - `UpdateFailed: Entity not found`
+       - `UpdateFailed: Entity state unavailable`
+       - `UpdateFailed: Real mode requires solar_power_entity and load_power_entity`
+  </Step>
+  
+  <Step title="Confirm source entities are updating">
+    In **Developer Tools → States**, check your configured solar and load entities. If their `last_changed` timestamps are old, fix the source integration first.
+  </Step>
+  
+  <Step title="Reload the integration">
+    1. Go to **Settings → Devices & Services → Energy Control Pro**
+    2. Click the three-dot menu
+    3. Select **Reload**
+  </Step>
+</Steps>
+
+### Sensors show unexpected values
+
+**Symptom**: Calculated values like surplus, import, or export don't make sense.
+
+**Understanding the calculations** (from `logic.py`):
+
+```python
+def calculate_balance(solar_w: int, load_w: int) -> dict[str, int]:
+    surplus_w = solar_w - load_w
+    grid_import_w = max(0, -surplus_w)
+    grid_export_w = max(0, surplus_w)
+    return {
+        "solar_w": solar_w,
+        "load_w": load_w,
+        "surplus_w": surplus_w,
+        "grid_import_w": grid_import_w,
+        "grid_export_w": grid_export_w,
+    }
+```
+
+**Formulas**:
+- `surplus_w = solar_w - load_w`
+- `grid_import_w = max(0, -(solar_w - load_w))` (only when load > solar)
+- `grid_export_w = max(0, solar_w - load_w)` (only when solar > load)
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify source values are correct">
+    Check `sensor.energy_control_pro_solar_w` and `sensor.energy_control_pro_load_w` match your expectations.
+  </Step>
+  
+  <Step title="Understand negative surplus">
+    A negative surplus means you're consuming more than producing (importing from grid).
+    
+    Example:
+    - Solar: 1000W
+    - Load: 1500W
+    - Surplus: -500W
+    - Grid Import: 500W
+  </Step>
+  
+  <Step title="Check for unit mismatches">
+    If your source entity reports in kW but Energy Control Pro expects W, values will be 1000x off.
+    
+    The integration automatically converts kW to W (see `coordinator.py:177-178`):
+    
+    ```python
+    if unit == UnitOfPower.KILO_WATT:
+        value = value * 1000
+    ```
+  </Step>
+</Steps>
+
+## Optimization Issues
+
+### Optimization switch exists but no actions execute
+
+**Symptom**: `switch.energy_control_pro_optimization` is ON, but loads never turn on or off.
+
+**Common causes**:
+
+1. **No load entities configured**
+2. **Thresholds not met**
+3. **Duration requirements not satisfied**
+4. **Anti-flapping protections active**
+5. **Loads already in desired state**
+
+**Solution**:
+
+<Steps>
+  <Step title="Ensure at least one load is configured">
+    Go to **Settings → Devices & Services → Energy Control Pro → Configure**.
+    
+    Verify that at least one of these is set:
+    - Load 1 Entity
+    - Load 2 Entity
+    - Load 3 Entity
+  </Step>
+  
+  <Step title="Check that optimization is enabled">
+    In **Developer Tools → States**, verify:
+    ```
+    switch.energy_control_pro_optimization: on
+    ```
+  </Step>
+  
+  <Step title="Verify conditions are met for actions">
+    From `optimization/engine.py`, loads turn ON when:
+    - Export duration ≥ configured threshold (default: 10 min)
+    - Surplus ≥ load's min_surplus_w (default: 1200W)
+    - Cooldown period has passed since last turn-off
+    
+    Loads turn OFF when:
+    - Grid import ≥ import_threshold_w (default: 800W)
+    - Import duration ≥ duration threshold (default: 10 min)
+    - Min on-time has passed since last turn-on
+  </Step>
+  
+  <Step title="Monitor durations">
+    Check these sensors:
+    - `sensor.energy_control_pro_export_duration_min`
+    - `sensor.energy_control_pro_import_duration_min`
+    
+    Actions only trigger after sustained conditions.
+  </Step>
+  
+  <Step title="Review last action sensor">
+    Check `sensor.energy_control_pro_last_action` for clues:
+    - `"No actions yet"`: Conditions haven't been met
+    - `"Optimization OFF"`: Switch is off
+    - Recent action message: System is working
+  </Step>
+  
+  <Step title="Check integration logs">
+    Enable debug logging in `configuration.yaml`:
+    
+    ```yaml
+    logger:
+      default: info
+      logs:
+        custom_components.energy_control_pro: debug
+    ```
+    
+    Restart and watch logs for optimization decision details.
+  </Step>
+</Steps>
+
+### Loads turn on/off too frequently (flapping)
+
+**Symptom**: Loads oscillate on and off repeatedly.
+
+**Cause**: Anti-flapping protections are too low or conditions are borderline.
+
+**Solution**:
+
+<Steps>
+  <Step title="Increase anti-flapping timers">
+    Go to **Configure** and adjust for each load:
+    - **Min On Time**: Time load must stay on before it can turn off (default: 10 min)
+    - **Cooldown**: Time load must stay off before it can turn on again (default: 10 min)
+    
+    Try increasing both to 15-20 minutes.
+  </Step>
+  
+  <Step title="Increase duration threshold">
+    The global **Duration Threshold** determines how long surplus or import must persist.
+    
+    Increase from 10 minutes to 15 or 20 minutes.
+  </Step>
+  
+  <Step title="Adjust surplus requirements">
+    If a load's power consumption is close to `min_surplus_w`, small fluctuations can cause the condition to toggle.
+    
+    Add a safety margin:
+    - Water heater uses 1000W
+    - Set `min_surplus_w` to 1200W (20% margin)
+  </Step>
+  
+  <Step title="Review strategy choice">
+    The `avoid_grid_import` strategy is more aggressive about turning off loads. Try `maximize_self_consumption` for more stability.
+  </Step>
+</Steps>
+
+### Wrong load is turning on/off
+
+**Symptom**: Lower-priority load activates before higher-priority load.
+
+**Understanding priority** (from `optimization/engine.py:63,96`):
+
+- **Turn ON**: Sorted by priority ascending (priority 1 first)
+  ```python
+  candidates = sorted(loads, key=lambda item: item.priority)
+  ```
+  
+- **Turn OFF**: Sorted by priority descending (priority 3 first)
+  ```python
+  candidates = sorted(loads, key=lambda item: item.priority, reverse=True)
+  ```
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify priority configuration">
+    Go to **Configure** and check:
+    - Load 1 Priority (should be 1 for highest)
+    - Load 2 Priority (should be 2 for medium)
+    - Load 3 Priority (should be 3 for lowest)
+  </Step>
+  
+  <Step title="Check surplus requirements">
+    Even with correct priorities, a load won't activate if surplus is insufficient.
+    
+    Example:
+    - Load 1 (priority 1): needs 2000W
+    - Load 2 (priority 2): needs 1000W
+    - Surplus: 1500W
+    
+    Result: Load 2 turns on because Load 1's requirement isn't met.
+  </Step>
+  
+  <Step title="Verify cooldown states">
+    A higher-priority load might be in cooldown while a lower-priority load is eligible.
+    
+    Check when each load was last turned off and compare to cooldown settings.
+  </Step>
+</Steps>
+
+## Alert Issues
+
+### Not receiving persistent notifications
+
+**Symptom**: No notifications appear even when thresholds are exceeded.
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify threshold and duration settings">
+    From `coordinator.py:201-226`, alerts trigger when:
+    
+    **Export alert**:
+    - `grid_export_w > export_threshold_w` (default: 800W)
+    - `export_duration_min >= duration_threshold_min` (default: 10 min)
+    - Alert hasn't already been sent
+    
+    **Import alert**:
+    - `grid_import_w > import_threshold_w` (default: 800W)
+    - `solar_w > 300W` (hardcoded)
+    - Alert hasn't already been sent
+  </Step>
+  
+  <Step title="Check duration requirements">
+    Alerts only fire after sustained conditions. Monitor:
+    - `sensor.energy_control_pro_export_duration_min`
+    - `sensor.energy_control_pro_import_duration_min`
+  </Step>
+  
+  <Step title="Verify notifications aren't dismissed">
+    Alerts use persistent notification IDs:
+    - `energy_control_pro_prolonged_grid_export`
+    - `energy_control_pro_import_while_solar`
+    
+    If you dismissed them, they won't reappear until the condition resets and triggers again.
+  </Step>
+  
+  <Step title="Lower thresholds temporarily for testing">
+    Set:
+    - Export Threshold: 100W
+    - Import Threshold: 100W  
+    - Duration Threshold: 1 min
+    
+    This makes alerts trigger much faster for verification.
+  </Step>
+</Steps>
+
+### Too many notifications
+
+**Symptom**: Getting alert spam during borderline conditions.
+
+**Solution**:
+
+<Steps>
+  <Step title="Increase duration threshold">
+    Change from 10 minutes to 20 or 30 minutes so only sustained conditions trigger alerts.
+  </Step>
+  
+  <Step title="Increase power thresholds">
+    Raise export and import thresholds to ignore minor fluctuations:
+    - Export Threshold: 1000W (from 800W)
+    - Import Threshold: 1000W (from 800W)
+  </Step>
+  
+  <Step title="Understand alert reset logic">
+    From `coordinator.py:223-226`, the export alert resets when energy state leaves "exporting":
+    
+    ```python
+    self._export_alert_sent = reset_export_alert_if_not_exporting(
+        export_alert_sent=self._export_alert_sent,
+        energy_state=energy_state,
+    )
+    ```
+    
+    If conditions oscillate, alerts can retrigger. Increase thresholds to add hysteresis.
+  </Step>
+</Steps>
+
+## Configuration Issues
+
+### Cannot add multiple instances
+
+**Symptom**: Trying to add a second Energy Control Pro integration fails.
+
+**Cause**: Only one instance is allowed per Home Assistant installation.
+
+**Solution**:
+
+This is intentional. The integration uses a unique ID (`const.py:5`):
+
+```python
+DOMAIN = "energy_control_pro"
+```
+
+From `config_flow.py:106-107`:
+
+```python
+await self.async_set_unique_id(DOMAIN)
+self._abort_if_unique_id_configured()
+```
+
+You can only have one Energy Control Pro instance. To change settings, use **Configure** instead of adding a new instance.
+
+### Configuration changes don't take effect
+
+**Symptom**: Changed settings but behavior hasn't updated.
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify you saved the configuration">
+    After changing settings, click **Submit**, not **Cancel**.
+  </Step>
+  
+  <Step title="Wait for next update cycle">
+    Changes take effect on the next coordinator update (every 10 seconds).
+  </Step>
+  
+  <Step title="Check runtime entities">
+    Some settings are overridden by runtime entities:
+    - Optimization enabled: controlled by `switch.energy_control_pro_optimization`
+    - Strategy: controlled by `select.energy_control_pro_strategy`
+    
+    Runtime values take precedence over configuration.
+  </Step>
+  
+  <Step title="Reload the integration if needed">
+    For major changes (like switching between simulation and real mode), reload:
+    
+    **Settings → Devices & Services → Energy Control Pro → ⋮ → Reload**
+  </Step>
+</Steps>
+
+## Getting Additional Help
+
+If issues persist:
+
+<Steps>
+  <Step title="Enable debug logging">
+    Add to `configuration.yaml`:
+    
+    ```yaml
+    logger:
+      default: warning
+      logs:
+        custom_components.energy_control_pro: debug
+    ```
+    
+    Restart Home Assistant and reproduce the issue.
+  </Step>
+  
+  <Step title="Collect diagnostics">
+    1. Go to **Settings → Devices & Services → Energy Control Pro**
+    2. Click on the integration
+    3. Select **Download Diagnostics**
+    4. Save the file
+  </Step>
+  
+  <Step title="Check for known issues">
+    Visit the [GitHub Issues page](https://github.com/springerd/energy-control-pro/issues) to see if your problem is already reported.
+  </Step>
+  
+  <Step title="Report the issue">
+    If it's a new bug, create an issue with:
+    - Home Assistant version
+    - Energy Control Pro version
+    - Configuration (redact sensitive info)
+    - Debug logs showing the problem
+    - Diagnostics file
+  </Step>
+</Steps>

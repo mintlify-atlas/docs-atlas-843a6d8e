@@ -1,0 +1,325 @@
+---
+title: 'Energy Monitoring'
+description: 'Real-time power flow tracking with 10-second updates'
+---
+
+## Overview
+
+Energy Control Pro continuously monitors your solar production, household consumption, and grid interactions through a comprehensive sensor suite. The system updates every **10 seconds**, providing near real-time visibility into your energy flows.
+
+<Info>
+All power sensors report in **Watts (W)** and are available as standard Home Assistant sensor entities.
+</Info>
+
+## Core Power Sensors
+
+The integration provides five primary power measurement sensors:
+
+### Solar Power
+```yaml
+sensor.solar_power
+```
+Tracks current solar panel production in watts. In simulation mode, this follows realistic generation curves based on the selected profile. In real mode, it reads from your configured `solar_power_entity`.
+
+**Entity Details** (sensor.py:29-35):
+- **Device Class**: `power`
+- **Unit**: W
+- **Icon**: `mdi:solar-power`
+- **Key**: `solar_w`
+
+### Load Power
+```yaml
+sensor.load_power
+```
+Measures total household power consumption. This represents all electrical loads currently drawing power in your home.
+
+**Entity Details** (sensor.py:36-42):
+- **Device Class**: `power`
+- **Unit**: W
+- **Icon**: `mdi:home-lightning-bolt`
+- **Key**: `load_w`
+
+### Surplus Power
+```yaml
+sensor.surplus_power
+```
+Calculated as `solar_w - load_w`. Positive values indicate excess solar production, negative values indicate a power deficit requiring grid import.
+
+**Entity Details** (sensor.py:43-49):
+- **Device Class**: `power`
+- **Unit**: W
+- **Icon**: `mdi:transmission-tower-export`
+- **Key**: `surplus_w`
+
+### Grid Import Power
+```yaml
+sensor.grid_import_power
+```
+Shows power currently being imported from the grid. This value is derived from the surplus calculation:
+
+**Calculation** (logic.py:95-99):
+```python
+def calculate_balance(solar_w: int, load_w: int) -> dict[str, int]:
+    surplus_w = solar_w - load_w
+    grid_import_w = max(0, -surplus_w)
+    grid_export_w = max(0, surplus_w)
+```
+
+**Entity Details** (sensor.py:50-56):
+- **Device Class**: `power`
+- **Unit**: W
+- **Icon**: `mdi:transmission-tower-import`
+- **Key**: `grid_import_w`
+
+### Grid Export Power
+```yaml
+sensor.grid_export_power
+```
+Indicates power being exported to the grid when solar production exceeds consumption.
+
+**Entity Details** (sensor.py:57-63):
+- **Device Class**: `power`
+- **Unit**: W
+- **Icon**: `mdi:transmission-tower-export`
+- **Key**: `grid_export_w`
+
+## Energy State Classification
+
+### Energy State Sensor
+```yaml
+sensor.energy_state
+```
+
+The system classifies your current energy situation into three states with configurable noise filtering:
+
+**State Logic** (logic.py:110-121):
+```python
+def derive_energy_state(
+    grid_import_w: int,
+    grid_export_w: int,
+    threshold_w: int,
+) -> str:
+    threshold = max(0, threshold_w)
+    if grid_import_w > threshold:
+        return ENERGY_STATE_IMPORTING
+    if grid_export_w > threshold:
+        return ENERGY_STATE_EXPORTING
+    return ENERGY_STATE_BALANCED
+```
+
+<AccordionGroup>
+  <Accordion title="importing" icon="arrow-down">
+    Grid import exceeds the threshold (default: 100W). Your home is consuming more power than solar panels produce.
+  </Accordion>
+  
+  <Accordion title="exporting" icon="arrow-up">
+    Grid export exceeds the threshold (default: 100W). Solar production exceeds consumption and excess power flows to the grid.
+  </Accordion>
+  
+  <Accordion title="balanced" icon="balance-scale">
+    Both import and export are below the threshold. Solar production closely matches consumption.
+  </Accordion>
+</AccordionGroup>
+
+**Entity Details** (sensor.py:64-68):
+- **Icon**: `mdi:flash`
+- **Key**: `energy_state`
+
+<Note>
+The threshold (default: 100W) prevents rapid state changes due to minor power fluctuations.
+</Note>
+
+## Duration Tracking
+
+The system tracks how long you've been continuously importing or exporting power:
+
+### Export Duration
+```yaml
+sensor.export_duration
+```
+Minutes spent in continuous export state. Resets to 0 when state changes.
+
+**Entity Details** (sensor.py:69-76):
+- **Device Class**: `duration`
+- **State Class**: `measurement`
+- **Unit**: minutes
+- **Icon**: `mdi:timer-outline`
+- **Key**: `export_duration_min`
+
+### Import Duration
+```yaml
+sensor.import_duration
+```
+Minutes spent in continuous import state. Resets to 0 when state changes.
+
+**Entity Details** (sensor.py:77-84):
+- **Device Class**: `duration`
+- **State Class**: `measurement`
+- **Unit**: minutes
+- **Icon**: `mdi:timer-outline`
+- **Key**: `import_duration_min`
+
+**Duration Update Logic** (logic.py:124-148):
+```python
+def update_state_durations(
+    now: datetime,
+    energy_state: str,
+    import_start: datetime | None,
+    export_start: datetime | None,
+) -> tuple[datetime | None, datetime | None, int, int]:
+    import_duration_min = 0
+    export_duration_min = 0
+
+    if energy_state == ENERGY_STATE_IMPORTING:
+        if import_start is None:
+            import_start = now
+        import_duration_min = int((now - import_start).total_seconds() // 60)
+        export_start = None
+    elif energy_state == ENERGY_STATE_EXPORTING:
+        if export_start is None:
+            export_start = now
+        export_duration_min = int((now - export_start).total_seconds() // 60)
+        import_start = None
+    else:
+        import_start = None
+        export_start = None
+
+    return import_start, export_start, import_duration_min, export_duration_min
+```
+
+## Update Interval
+
+The coordinator refreshes all sensors every **10 seconds** (coordinator.py:90-95):
+
+```python
+super().__init__(
+    hass,
+    logger=_LOGGER,
+    name="Energy Control Pro",
+    update_interval=timedelta(seconds=10),
+)
+```
+
+<Card title="Update Cycle" icon="rotate">
+  Every 10 seconds, the system:
+  1. Reads or simulates solar and load power
+  2. Calculates balance (surplus, import, export)
+  3. Derives energy state with threshold filtering
+  4. Updates duration counters
+  5. Processes alert conditions
+  6. Runs optimization engine (if enabled)
+</Card>
+
+## Data Flow
+
+<Steps>
+  <Step title="Power Acquisition">
+    **Simulation Mode**: Generate values using time-based profiles (logic.py:53-92)
+    
+    **Real Mode**: Read from configured entities (coordinator.py:145-157)
+  </Step>
+  
+  <Step title="Balance Calculation">
+    Calculate `surplus_w`, `grid_import_w`, and `grid_export_w` from solar and load values (logic.py:95-107)
+  </Step>
+  
+  <Step title="State Classification">
+    Determine energy state using threshold-based logic (logic.py:110-121)
+  </Step>
+  
+  <Step title="Duration Tracking">
+    Update import/export duration counters (logic.py:124-148)
+  </Step>
+  
+  <Step title="Data Publishing">
+    Push updated values to all sensor entities (coordinator.py:97-131)
+  </Step>
+</Steps>
+
+## Real Mode Configuration
+
+When using actual hardware sensors, configure these entities:
+
+```yaml
+solar_power_entity: sensor.solar_inverter_power  # Your solar inverter sensor
+load_power_entity: sensor.home_consumption       # Your consumption meter
+```
+
+**Entity Reading Logic** (coordinator.py:159-180):
+```python
+def _read_power_w(self, entity_id: str) -> int:
+    state = self.hass.states.get(entity_id)
+    if state is None:
+        raise UpdateFailed(f"Entity not found: {entity_id}")
+
+    if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+        raise UpdateFailed(f"Entity state unavailable: {entity_id}")
+
+    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+    if unit and unit not in (UnitOfPower.WATT, UnitOfPower.KILO_WATT):
+        raise UpdateFailed(f"Entity {entity_id} must report power in W or kW")
+
+    value = float(state.state)
+    if unit == UnitOfPower.KILO_WATT:
+        value = value * 1000
+
+    return max(0, int(round(value)))
+```
+
+<Warning>
+Source entities must report power in **W** or **kW**. The integration automatically converts kW to W.
+</Warning>
+
+## Using Sensor Data
+
+### In Automations
+```yaml
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.surplus_power
+    above: 2000
+    for:
+      minutes: 5
+action:
+  - service: notify.mobile_app
+    data:
+      message: "High surplus power available for {{ states('sensor.surplus_power') }}W"
+```
+
+### In Templates
+```jinja
+{% if states('sensor.energy_state') == 'exporting' %}
+  Exporting {{ states('sensor.grid_export_power') }}W for {{ states('sensor.export_duration') }} minutes
+{% endif %}
+```
+
+### Dashboard Cards
+```yaml
+type: entities
+entities:
+  - sensor.solar_power
+  - sensor.load_power
+  - sensor.surplus_power
+  - sensor.grid_import_power
+  - sensor.grid_export_power
+  - sensor.energy_state
+  - sensor.export_duration
+  - sensor.import_duration
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Load Optimization" icon="gauge-high" href="/features/load-optimization">
+    Use monitoring data to automatically control loads
+  </Card>
+  <Card title="Alerts" icon="bell" href="/features/alerts">
+    Configure notifications for prolonged import/export
+  </Card>
+  <Card title="Simulation Mode" icon="flask" href="/features/simulation-mode">
+    Test without hardware using realistic profiles
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure thresholds and entities
+  </Card>
+</CardGroup>

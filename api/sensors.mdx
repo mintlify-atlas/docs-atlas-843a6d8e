@@ -1,0 +1,253 @@
+---
+title: Sensors
+description: Complete reference for all Energy Control Pro sensor entities
+---
+
+Energy Control Pro provides 9 sensor entities that monitor your solar power system's state, power flows, and energy management actions.
+
+## Power Monitoring Sensors
+
+### Solar Power
+
+<ParamField path="sensor.energy_control_pro_solar_power" type="sensor">
+  Real-time solar panel power generation.
+
+  <ResponseField name="key" type="string" default="solar_w">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="W">
+    Unit of measurement (Watts)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="power">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:solar-power">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Current solar power generation in watts
+  </ResponseField>
+</ParamField>
+
+### Load Power
+
+<ParamField path="sensor.energy_control_pro_load_power" type="sensor">
+  Current household power consumption.
+
+  <ResponseField name="key" type="string" default="load_w">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="W">
+    Unit of measurement (Watts)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="power">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:home-lightning-bolt">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Current load power consumption in watts
+  </ResponseField>
+</ParamField>
+
+### Surplus Power
+
+<ParamField path="sensor.energy_control_pro_surplus_power" type="sensor">
+  Available excess solar power after household consumption.
+
+  <ResponseField name="key" type="string" default="surplus_w">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="W">
+    Unit of measurement (Watts)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="power">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:transmission-tower-export">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Current surplus power available in watts
+  </ResponseField>
+</ParamField>
+
+### Grid Import Power
+
+<ParamField path="sensor.energy_control_pro_grid_import_power" type="sensor">
+  Power currently being imported from the electrical grid.
+
+  <ResponseField name="key" type="string" default="grid_import_w">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="W">
+    Unit of measurement (Watts)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="power">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:transmission-tower-import">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Current grid import power in watts
+  </ResponseField>
+</ParamField>
+
+### Grid Export Power
+
+<ParamField path="sensor.energy_control_pro_grid_export_power" type="sensor">
+  Power currently being exported to the electrical grid.
+
+  <ResponseField name="key" type="string" default="grid_export_w">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="W">
+    Unit of measurement (Watts)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="power">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:transmission-tower-export">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Current grid export power in watts
+  </ResponseField>
+</ParamField>
+
+## State and Duration Sensors
+
+### Energy State
+
+<ParamField path="sensor.energy_control_pro_energy_state" type="sensor">
+  Current energy flow state of the system.
+
+  <ResponseField name="key" type="string" default="energy_state">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:flash">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="string">
+    Current state (e.g., "importing", "exporting", "self_consuming")
+  </ResponseField>
+</ParamField>
+
+### Export Duration
+
+<ParamField path="sensor.energy_control_pro_export_duration" type="sensor">
+  Duration of continuous grid export.
+
+  <ResponseField name="key" type="string" default="export_duration_min">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="min">
+    Unit of measurement (Minutes)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="duration">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="state_class" type="string" default="measurement">
+    Home Assistant state class for historical tracking
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:timer-outline">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Duration in minutes the system has been exporting to grid
+  </ResponseField>
+</ParamField>
+
+### Import Duration
+
+<ParamField path="sensor.energy_control_pro_import_duration" type="sensor">
+  Duration of continuous grid import.
+
+  <ResponseField name="key" type="string" default="import_duration_min">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="native_unit_of_measurement" type="string" default="min">
+    Unit of measurement (Minutes)
+  </ResponseField>
+
+  <ResponseField name="device_class" type="string" default="duration">
+    Home Assistant device class
+  </ResponseField>
+
+  <ResponseField name="state_class" type="string" default="measurement">
+    Home Assistant state class for historical tracking
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:timer-outline">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="int">
+    Duration in minutes the system has been importing from grid
+  </ResponseField>
+</ParamField>
+
+## Action Tracking Sensor
+
+### Last Action
+
+<ParamField path="sensor.energy_control_pro_last_action" type="sensor">
+  Most recent optimization action taken by the system.
+
+  <ResponseField name="key" type="string" default="last_action">
+    Internal identifier for the sensor
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:clipboard-text-clock-outline">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="native_value" type="string">
+    Description of the last optimization action performed
+  </ResponseField>
+</ParamField>
+
+## Entity ID Format
+
+All sensor entity IDs follow the pattern: `sensor.energy_control_pro_{sensor_name}`
+
+Example entity IDs:
+- `sensor.energy_control_pro_solar_power`
+- `sensor.energy_control_pro_load_power`
+- `sensor.energy_control_pro_surplus_power`
+- `sensor.energy_control_pro_grid_import_power`
+- `sensor.energy_control_pro_grid_export_power`
+- `sensor.energy_control_pro_energy_state`
+- `sensor.energy_control_pro_export_duration`
+- `sensor.energy_control_pro_import_duration`
+- `sensor.energy_control_pro_last_action`

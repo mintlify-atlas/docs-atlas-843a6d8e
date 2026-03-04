@@ -1,0 +1,176 @@
+---
+title: Selects
+description: Select entities for configuring Energy Control Pro strategy
+---
+
+Energy Control Pro provides a select entity to choose between different optimization strategies.
+
+## Strategy Select
+
+<ParamField path="select.energy_control_pro_strategy" type="select">
+  Runtime strategy selector for optimization behavior.
+
+  This select entity allows you to choose which optimization strategy the system uses when managing loads. Each strategy has different priorities and behaviors for balancing self-consumption, grid usage, and load management.
+
+  <ResponseField name="name" type="string" default="Energy Control Pro Strategy">
+    Display name of the select entity
+  </ResponseField>
+
+  <ResponseField name="unique_id" type="string">
+    Format: `{entry_id}_strategy`
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:sitemap-outline">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="current_option" type="string">
+    Currently selected strategy (one of the available options)
+  </ResponseField>
+
+  <ResponseField name="options" type="list">
+    Available strategy options:
+    - `maximize_self_consumption`
+    - `avoid_grid_import`
+    - `balanced`
+  </ResponseField>
+</ParamField>
+
+## Available Strategies
+
+### Maximize Self Consumption
+
+<ParamField query="maximize_self_consumption" type="strategy">
+  Prioritizes using all available solar power within the home.
+
+  This strategy aims to maximize the amount of solar energy consumed on-site rather than exporting to the grid. It aggressively turns on loads when surplus is available to utilize excess solar generation.
+
+  <ResponseField name="Constant" type="string" default="STRATEGY_MAXIMIZE_SELF_CONSUMPTION">
+    Defined in const.py:43
+  </ResponseField>
+
+  <ResponseField name="Default" type="boolean" default="true">
+    This is the default strategy (DEFAULT_STRATEGY in const.py:37)
+  </ResponseField>
+</ParamField>
+
+### Avoid Grid Import
+
+<ParamField query="avoid_grid_import" type="strategy">
+  Minimizes power drawn from the electrical grid.
+
+  This strategy focuses on reducing or eliminating grid import by carefully managing loads to stay within solar generation capacity. It may be more conservative about turning on loads compared to maximize_self_consumption.
+
+  <ResponseField name="Constant" type="string" default="STRATEGY_AVOID_GRID_IMPORT">
+    Defined in const.py:44
+  </ResponseField>
+</ParamField>
+
+### Balanced
+
+<ParamField query="balanced" type="strategy">
+  Balances between self-consumption and grid import avoidance.
+
+  This strategy provides a middle ground between the other two approaches, attempting to optimize both self-consumption and grid import reduction.
+
+  <ResponseField name="Constant" type="string" default="STRATEGY_BALANCED">
+    Defined in const.py:45
+  </ResponseField>
+</ParamField>
+
+## Services
+
+The select entity supports standard Home Assistant select services:
+
+### Select Option
+
+Changes the active optimization strategy.
+
+```yaml
+service: select.select_option
+target:
+  entity_id: select.energy_control_pro_strategy
+data:
+  option: maximize_self_consumption
+```
+
+## Implementation Details
+
+<ResponseField name="Coordinator Method" type="method">
+  `async_set_strategy(option)` - Called when selecting a new strategy
+</ResponseField>
+
+<ResponseField name="State Source" type="data_key">
+  The current strategy is read from coordinator data key `strategy`
+</ResponseField>
+
+<ResponseField name="Strategy List" type="constant">
+  Available strategies are defined in STRATEGIES tuple in const.py:46-50
+</ResponseField>
+
+## Usage Examples
+
+### Automation to Change Strategy Based on Time
+
+```yaml
+automation:
+  - alias: "Aggressive self-consumption during peak solar"
+    trigger:
+      - platform: time
+        at: "12:00:00"
+    action:
+      - service: select.select_option
+        target:
+          entity_id: select.energy_control_pro_strategy
+        data:
+          option: maximize_self_consumption
+
+  - alias: "Conservative strategy in evening"
+    trigger:
+      - platform: time
+        at: "17:00:00"
+    action:
+      - service: select.select_option
+        target:
+          entity_id: select.energy_control_pro_strategy
+        data:
+          option: avoid_grid_import
+```
+
+### Conditional Strategy Based on Grid Price
+
+```yaml
+automation:
+  - alias: "Adjust strategy based on electricity price"
+    trigger:
+      - platform: state
+        entity_id: sensor.electricity_price
+    action:
+      - choose:
+          - conditions:
+              - condition: numeric_state
+                entity_id: sensor.electricity_price
+                above: 0.30
+            sequence:
+              - service: select.select_option
+                target:
+                  entity_id: select.energy_control_pro_strategy
+                data:
+                  option: avoid_grid_import
+          - conditions:
+              - condition: numeric_state
+                entity_id: sensor.electricity_price
+                below: 0.15
+            sequence:
+              - service: select.select_option
+                target:
+                  entity_id: select.energy_control_pro_strategy
+                data:
+                  option: maximize_self_consumption
+        default:
+          - service: select.select_option
+            target:
+              entity_id: select.energy_control_pro_strategy
+            data:
+              option: balanced
+```

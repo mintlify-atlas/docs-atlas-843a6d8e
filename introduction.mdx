@@ -1,0 +1,131 @@
+---
+title: Introduction
+description: Stop exporting solar energy without noticing. Detect sustained solar surplus and automatically control loads to maximize self-consumption.
+---
+
+Energy Control Pro is a Home Assistant integration that centralizes solar energy detection, alerts, and load optimization in one place. Stop writing and maintaining fragile YAML automations for solar energy management.
+
+## What problems does it solve?
+
+If you use solar panels with Home Assistant, you probably run into at least one of these:
+
+- Exporting energy to the grid without noticing
+- Importing from the grid while solar is still available
+- Maintaining fragile automations that are hard to tune
+
+Energy Control Pro solves these problems by providing intelligent detection, automatic alerts, and priority-based load control with anti-flapping protections.
+
+## How it works
+
+The integration calculates your solar, load, and grid balance every 10 seconds and makes intelligent decisions based on sustained conditions.
+
+<Steps>
+  <Step title="Monitor energy flow">
+    Energy Control Pro continuously monitors your solar production and home load to calculate surplus and grid balance.
+  </Step>
+  
+  <Step title="Detect sustained conditions">
+    When grid export or import stays above your configured threshold for a minimum duration (default 10 minutes), the integration detects it.
+  </Step>
+  
+  <Step title="Send alerts">
+    You receive persistent Home Assistant notifications when sustained export or import conditions are detected.
+  </Step>
+  
+  <Step title="Control loads automatically">
+    The optimization engine can automatically turn on loads when there's sustained surplus, or turn them off when importing from the grid.
+  </Step>
+</Steps>
+
+## Example scenario
+
+Here's how Energy Control Pro works in practice:
+
+<Accordion title="Turning on a load with surplus solar">
+  **Conditions:**
+  - Solar production: 1500W
+  - Home load: 400W
+  - Surplus: 1100W
+
+  After 10 minutes above threshold, Energy Control Pro:
+  - Turns ON `switch.boiler`
+  - Registers last action: "Turned ON switch.boiler (surplus 1100W for 10 min)"
+</Accordion>
+
+<Accordion title="Turning off a load during grid import">
+  **Conditions:**
+  - Solar production: 200W
+  - Home load: 1100W
+  - Grid import: 900W
+
+  After 10 minutes above threshold, Energy Control Pro:
+  - Turns OFF `switch.boiler`
+  - Registers last action: "Turned OFF switch.boiler (import 900W for 10 min)"
+</Accordion>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Real-time monitoring" icon="gauge">
+    Energy balance calculated every 10 seconds with dedicated sensors for solar, load, surplus, grid import, and grid export.
+  </Card>
+  
+  <Card title="Simulation mode" icon="flask">
+    Three built-in profiles (sunny day, cloudy day, winter day) for testing dashboards and automations without real hardware.
+  </Card>
+  
+  <Card title="Persistent alerts" icon="bell">
+    Automatic notifications when grid export or import conditions persist beyond your configured thresholds.
+  </Card>
+  
+  <Card title="Smart load control" icon="brain">
+    Control up to 3 loads with priority logic, anti-flapping protection, minimum on-time, and cooldown periods.
+  </Card>
+</CardGroup>
+
+## Sensors created
+
+When you set up Energy Control Pro, you get these sensors:
+
+- `sensor.solar_w` - Current solar power production
+- `sensor.load_w` - Current home load consumption
+- `sensor.surplus_w` - Current surplus (solar minus load)
+- `sensor.grid_import_w` - Power being imported from grid
+- `sensor.grid_export_w` - Power being exported to grid
+- `sensor.energy_state` - Current state: `importing`, `exporting`, or `balanced`
+- `sensor.import_duration_min` - How long you've been importing
+- `sensor.export_duration_min` - How long you've been exporting
+- `sensor.energy_control_pro_last_action` - Last optimization action taken
+
+<Info>
+  All sensors update every 10 seconds to give you real-time visibility into your energy flow.
+</Info>
+
+## Optimization strategies
+
+Choose from three built-in strategies to match your goals:
+
+- **Maximize self-consumption** (default) - Turn on loads as soon as sustained surplus is available
+- **Avoid grid import** - Focus on turning off loads when importing from grid
+- **Balanced** - Balanced approach between the two strategies
+
+<Tip>
+  You can change strategies at runtime using the `select.energy_control_pro_strategy` entity without restarting Home Assistant.
+</Tip>
+
+## Anti-flapping protection
+
+Energy Control Pro includes several protections to prevent devices from cycling on and off too frequently:
+
+- **Duration thresholds** - Conditions must persist for a minimum time before taking action
+- **Minimum on-time** - Loads must stay on for a minimum duration before being turned off
+- **Cooldown periods** - Loads must wait a minimum time after turning off before being turned on again
+- **Priority logic** - Highest priority loads turn on first, lowest priority loads turn off first
+
+<Note>
+  These protections are configurable per load, giving you fine-grained control over each device's behavior.
+</Note>
+
+## What's next?
+
+Ready to get started? Continue to the [installation guide](/installation) to add Energy Control Pro to your Home Assistant instance.

@@ -1,97 +1,211 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Energy Control Pro Documentation
+mode: custom
 ---
 
-## Setting up
+<div className="relative bg-gradient-to-br from-[#1a1d27] via-[#0f1117] to-[#1a1d27] dark:bg-gradient-to-br dark:from-[#1a1d27] dark:via-[#0f1117] dark:to-[#1a1d27] py-20 overflow-hidden">
+  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNiIgc3Ryb2tlPSIjRkY5ODAwIiBzdHJva2Utb3BhY2l0eT0iLjA1Ii8+PC9nPjwvc3ZnPg==')] opacity-20"></div>
+  
+  <div className="relative max-w-6xl mx-auto px-6">
+    <div className="text-center">
+      <h1 className="text-5xl sm:text-6xl font-bold text-white mb-6">
+        Energy Control Pro
+      </h1>
+      <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
+        Stop exporting solar energy without noticing. Maximize self-consumption with intelligent load control for Home Assistant.
+      </p>
+      
+      <div className="flex flex-wrap gap-4 justify-center">
+        <a 
+          href="/installation" 
+          className="inline-flex items-center px-6 py-3 rounded-lg bg-[#FF9800] hover:bg-[#F57C00] text-white font-semibold transition-colors no-underline"
+        >
+          Get Started
+        </a>
+        <a 
+          href="/features/energy-monitoring" 
+          className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors no-underline"
+        >
+          Explore Features
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Why Energy Control Pro?
+    </h2>
+    <p className="text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      Centralize solar energy detection, alerts, and load optimization without writing complex YAML automations.
+    </p>
+  </div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+    <div className="group p-6 rounded-2xl border border-gray-200 dark:border-[#27272a] bg-white dark:bg-[#1a1d27] hover:border-[#FF9800] dark:hover:border-[#FF9800] transition-colors">
+      <div className="text-[#FF9800] mb-4">
+        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        Real-Time Monitoring
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Track solar production, load consumption, and grid balance every 10 seconds with automatic state detection.
+      </p>
+    </div>
 
-## Make it yours
+    <div className="group p-6 rounded-2xl border border-gray-200 dark:border-[#27272a] bg-white dark:bg-[#1a1d27] hover:border-[#FF9800] dark:hover:border-[#FF9800] transition-colors">
+      <div className="text-[#FF9800] mb-4">
+        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        Smart Load Control
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Automatically manage up to 3 loads with priority logic, anti-flapping protection, and configurable thresholds.
+      </p>
+    </div>
 
-Design a docs site that looks great and empowers your users.
+    <div className="group p-6 rounded-2xl border border-gray-200 dark:border-[#27272a] bg-white dark:bg-[#1a1d27] hover:border-[#FF9800] dark:hover:border-[#FF9800] transition-colors">
+      <div className="text-[#FF9800] mb-4">
+        <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        Intelligent Alerts
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        Get notified when exporting surplus power or importing from the grid while solar is available.
+      </p>
+    </div>
+  </div>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Quick Start
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Get Energy Control Pro running in minutes with these simple steps.
+  </p>
 
-## Create beautiful pages
+  <Steps>
+    <Step title="Install via HACS">
+      Open HACS in Home Assistant, add this repository as a custom integration, and search for **Energy Control Pro**.
+      
+      ```bash
+      Repository: https://github.com/springerd/energy-control-pro
+      Category: Integration
+      ```
+      
+      After installation, restart Home Assistant.
+    </Step>
 
-Everything you need to create world-class documentation.
+    <Step title="Add the Integration">
+      Navigate to **Settings → Devices & Services** in Home Assistant, click **Add Integration**, and search for **Energy Control Pro**.
+      
+      <Note>
+        Only one instance of Energy Control Pro is allowed per Home Assistant installation.
+      </Note>
+    </Step>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+    <Step title="Configure Your Setup">
+      Choose between **Simulation Mode** (for testing with built-in profiles) or **Real Mode** (using your actual solar and load entities).
+      
+      ```yaml
+      # Example Real Mode Configuration
+      Solar Power Entity: sensor.solar_power
+      Load Power Entity: sensor.home_consumption
+      Import Threshold: 800W
+      Export Threshold: 800W
+      Duration Threshold: 10 minutes
+      ```
+    </Step>
 
-## Need inspiration?
+    <Step title="Enable Optimization">
+      Turn on the `switch.energy_control_pro_optimization` entity and configure up to 3 loads with priority levels and power thresholds.
+      
+      The integration will now automatically control your configured devices based on solar surplus and grid import conditions.
+    </Step>
+  </Steps>
+</div>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Explore by Topic
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Deep dive into specific features and learn how to get the most out of Energy Control Pro.
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="Energy Monitoring" icon="chart-line" href="/features/energy-monitoring">
+      Real-time sensors for solar, load, surplus, import, export, and energy state tracking.
+    </Card>
+    <Card title="Load Optimization" icon="sliders" href="/features/load-optimization">
+      Intelligent control engine with priority logic, cooldown periods, and anti-flapping protection.
+    </Card>
+    <Card title="Alerts & Notifications" icon="bell" href="/features/alerts">
+      Persistent notifications for prolonged grid export and import-while-solar conditions.
+    </Card>
+    <Card title="Simulation Mode" icon="flask" href="/features/simulation-mode">
+      Test your dashboards and automations with realistic sunny, cloudy, and winter profiles.
+    </Card>
+    <Card title="Optimization Strategies" icon="brain" href="/guides/optimization-strategies">
+      Learn about maximize self-consumption, avoid grid import, and balanced strategies.
+    </Card>
+    <Card title="Dashboard Setup" icon="gauge" href="/guides/dashboard-setup">
+      Import pre-built dashboards for visualizing energy flow and optimization state.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    API Reference
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Complete reference for all sensors, switches, and configuration options.
+  </p>
+
+  <CardGroup cols={2}>
+    <Card title="Sensors" icon="gauge-high" href="/api/sensors">
+      All available sensor entities including power metrics and duration tracking.
+    </Card>
+    <Card title="Switches & Selects" icon="toggle-on" href="/api/switches">
+      Runtime controls for enabling optimization and selecting strategies.
+    </Card>
+    <Card title="Configuration Options" icon="gear" href="/api/configuration-options">
+      Complete list of thresholds, entity mappings, and behavior settings.
+    </Card>
+    <Card title="Optimization Config" icon="wrench" href="/api/optimization-config">
+      Load configuration including priority, surplus requirements, and timing parameters.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="p-8 rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gradient-to-br from-gray-50 to-white dark:from-[#1a1d27] dark:to-[#242838]">
+    <div className="text-center">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        Ready to optimize your solar self-consumption?
+      </h2>
+      <p className="text-base text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+        Install Energy Control Pro today and let your Home Assistant automatically manage your loads for maximum efficiency.
+      </p>
+      <a 
+        href="/installation" 
+        className="inline-flex items-center px-6 py-3 rounded-lg bg-[#FF9800] hover:bg-[#F57C00] text-white font-semibold transition-colors no-underline"
+      >
+        Get Started Now
+      </a>
+    </div>
+  </div>
+</div>

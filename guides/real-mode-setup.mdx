@@ -1,0 +1,244 @@
+---
+title: Real Mode Setup
+description: Configure Energy Control Pro to monitor your actual solar panels and home load sensors
+---
+
+Real mode allows Energy Control Pro to read power values from your actual Home Assistant sensor entities instead of using simulated profiles.
+
+## Entity Requirements
+
+Both solar and load entities must meet strict requirements for accurate energy calculations:
+
+### Power Unit Requirements
+
+Entities must report power in one of these units:
+- **W** (watts) - preferred
+- **kW** (kilowatts) - automatically converted to watts
+
+<Note>
+Values in kW are multiplied by 1000 during reading. For example, `2.5 kW` becomes `2500 W`.
+</Note>
+
+### Entity State Requirements
+
+<Steps>
+  <Step title="Entity must exist">
+    The entity ID must be registered in Home Assistant. Verify in **Developer Tools → States**.
+  </Step>
+  
+  <Step title="State must be available">
+    The entity cannot be in `unavailable` or `unknown` state.
+  </Step>
+  
+  <Step title="Value must be numeric">
+    The state value must be convertible to a number (e.g., `1500`, `2.5`, not `on` or `sunny`).
+  </Step>
+</Steps>
+
+## Configuration Steps
+
+<Steps>
+  <Step title="Navigate to integration settings">
+    Go to **Settings → Devices & Services → Energy Control Pro → Configure**.
+  </Step>
+  
+  <Step title="Disable simulation mode">
+    Toggle **Simulation** to **OFF**.
+  </Step>
+  
+  <Step title="Select solar power entity">
+    Choose your solar production sensor from the **Solar Power Entity** dropdown.
+    
+    Example entities:
+    - `sensor.solar_panels_power`
+    - `sensor.inverter_ac_power`
+    - `sensor.pv_production_w`
+  </Step>
+  
+  <Step title="Select load power entity">
+    Choose your home consumption sensor from the **Load Power Entity** dropdown.
+    
+    Example entities:
+    - `sensor.home_power_consumption`
+    - `sensor.total_load_w`
+    - `sensor.grid_consumption`
+  </Step>
+  
+  <Step title="Save configuration">
+    Click **Submit**. The integration will validate both entities immediately.
+  </Step>
+</Steps>
+
+## Entity Validation Process
+
+When you save the configuration, Energy Control Pro validates each entity:
+
+```python
+# From coordinator.py:159-180
+def _read_power_w(self, entity_id: str) -> int:
+    state = self.hass.states.get(entity_id)
+    if state is None:
+        raise UpdateFailed(f"Entity not found: {entity_id}")
+    
+    if state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+        raise UpdateFailed(f"Entity state unavailable: {entity_id}")
+    
+    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+    if unit and unit not in (UnitOfPower.WATT, UnitOfPower.KILO_WATT):
+        raise UpdateFailed(f"Entity {entity_id} must report power in W or kW")
+    
+    value = float(state.state)
+    if unit == UnitOfPower.KILO_WATT:
+        value = value * 1000
+    
+    return max(0, int(round(value)))
+```
+
+<Note>
+Negative values are automatically clamped to zero to prevent calculation errors.
+</Note>
+
+## Common Issues
+
+### Entities not found during setup
+
+**Error message:** `real_entity_not_found`
+
+**Solution:**
+<Steps>
+  <Step title="Verify entity exists">
+    Open **Developer Tools → States** and search for your entity ID.
+  </Step>
+  
+  <Step title="Check entity domain">
+    Solar and load entities must be in the `sensor` domain (e.g., `sensor.solar_power`).
+  </Step>
+  
+  <Step title="Restart if recently added">
+    If you just added the entity, restart Home Assistant to ensure it's registered.
+  </Step>
+</Steps>
+
+### Invalid value/unit errors
+
+**Error message:** `real_entity_unit_not_w` or `real_entity_not_numeric`
+
+**Solution:**
+<Steps>
+  <Step title="Check unit of measurement">
+    In **Developer Tools → States**, look at the entity attributes. The `unit_of_measurement` must be `W` or `kW`.
+  </Step>
+  
+  <Step title="Verify numeric state">
+    The current state must be a number. If it shows text like "On" or "Offline", that entity won't work.
+  </Step>
+  
+  <Step title="Create template sensor if needed">
+    If your sensor reports in different units (e.g., `A` for amps), create a template sensor that calculates watts:
+    
+    ```yaml
+    template:
+      - sensor:
+          - name: "Solar Power Watts"
+            unit_of_measurement: "W"
+            state: "{{ states('sensor.solar_current') | float * 230 }}"
+    ```
+  </Step>
+</Steps>
+
+### Sensors not updating
+
+**Error message:** Sensors show old values or "Unknown"
+
+**Solution:**
+<Steps>
+  <Step title="Confirm integration is loaded">
+    Go to **Settings → Devices & Services** and ensure Energy Control Pro shows as "Configured".
+  </Step>
+  
+  <Step title="Check update interval">
+    Real mode updates every 10 seconds. Wait at least 10 seconds after configuration changes.
+  </Step>
+  
+  <Step title="Review logs">
+    Open **Settings → System → Logs** and filter for `energy_control_pro` to see any errors.
+  </Step>
+  
+  <Step title="Verify source entities update">
+    Check that your solar and load entities themselves are receiving updates. If they're stale, fix the source integration first.
+  </Step>
+</Steps>
+
+### Entity unavailable intermittently
+
+**Problem:** Entities occasionally go unavailable, causing sensor updates to fail.
+
+**Solution:**
+
+- Energy Control Pro will show `UpdateFailed` in logs when source entities are unavailable
+- The integration will retry on the next update cycle (10 seconds)
+- Fix the underlying integration that provides the solar/load sensors
+- Consider using sensors with better reliability or adding availability templates
+
+## Switching Between Simulation and Real Mode
+
+You can toggle between simulation and real mode at any time:
+
+<Steps>
+  <Step title="Open configuration">
+    **Settings → Devices & Services → Energy Control Pro → Configure**
+  </Step>
+  
+  <Step title="Toggle simulation">
+    Enable or disable the **Simulation** checkbox.
+  </Step>
+  
+  <Step title="Configure accordingly">
+    - **Simulation ON**: Select a profile (`sunny_day`, `cloudy_day`, `winter_day`)
+    - **Simulation OFF**: Provide valid solar and load entity IDs
+  </Step>
+</Steps>
+
+<Warning>
+When real mode is enabled, you **must** provide both solar and load entities. The integration will refuse to save if either is missing.
+</Warning>
+
+## Verifying Real Mode Operation
+
+After configuration, verify that real data is flowing:
+
+<Steps>
+  <Step title="Check sensor values">
+    Navigate to **Settings → Devices & Services → Energy Control Pro** and view the device.
+    
+    Verify these sensors show realistic values:
+    - `sensor.energy_control_pro_solar_w`
+    - `sensor.energy_control_pro_load_w`
+  </Step>
+  
+  <Step title="Compare with source entities">
+    The values should match your configured source entities.
+  </Step>
+  
+  <Step title="Monitor calculated values">
+    Check that derived sensors update correctly:
+    - `sensor.energy_control_pro_surplus_w` = solar - load
+    - `sensor.energy_control_pro_grid_import_w` (when load > solar)
+    - `sensor.energy_control_pro_grid_export_w` (when solar > load)
+  </Step>
+  
+  <Step title="Observe state changes">
+    Watch `sensor.energy_control_pro_energy_state` transition between:
+    - `importing` - drawing from grid
+    - `exporting` - sending to grid  
+    - `balanced` - minimal grid interaction
+  </Step>
+</Steps>
+
+## Next Steps
+
+Once real mode is configured and working:
+
+- [Set up optimization strategies](/guides/optimization-strategies) to control loads
+- [Import the dashboard](/guides/dashboard-setup) to visualize your energy flow
+- [Configure alerts](/features/alerts) for sustained import/export conditions

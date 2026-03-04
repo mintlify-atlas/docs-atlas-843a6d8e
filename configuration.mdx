@@ -1,0 +1,450 @@
+---
+title: Configuration
+description: Configure Energy Control Pro through the UI - no YAML required. Set up simulation or real mode, configure thresholds, and enable load optimization.
+---
+
+Energy Control Pro uses a fully UI-based configuration flow. All settings are managed through Home Assistant's devices and services interface, with no YAML editing required.
+
+<Info>
+  You can reconfigure any setting at any time by going to the integration's options without needing to remove and re-add it.
+</Info>
+
+## Initial setup
+
+After installing Energy Control Pro, add and configure it:
+
+<Steps>
+  <Step title="Add the integration">
+    Go to **Settings** → **Devices & Services** → **Add Integration**.
+    
+    Search for and select **Energy Control Pro**.
+  </Step>
+  
+  <Step title="Choose mode">
+    You'll see a configuration form with all available settings. First, decide between simulation and real mode:
+    
+    **Simulation mode**: ON (enabled) - Uses built-in solar profiles for testing
+    **Simulation mode**: OFF (disabled) - Uses your real solar and load sensors
+  </Step>
+  
+  <Step title="Configure basic settings">
+    The form shows all settings at once. Configure the ones relevant to your setup and leave others at defaults.
+  </Step>
+  
+  <Step title="Complete setup">
+    Click **Submit** to create the integration.
+    
+    If using real mode, the integration validates your sensors and shows errors if they're incompatible.
+  </Step>
+</Steps>
+
+<Note>
+  Only one Energy Control Pro instance can be installed. The integration enforces a unique ID.
+</Note>
+
+## Configuration sections
+
+The configuration form includes several sections. Here's what each one does:
+
+### Mode selection
+
+<Accordion title="Simulation mode (recommended for testing)">
+  **Setting**: Simulation
+  
+  When enabled, Energy Control Pro uses built-in solar profiles instead of real sensors. Perfect for:
+  - Testing the integration before connecting real hardware
+  - Validating your dashboard design
+  - Testing automations that depend on Energy Control Pro sensors
+
+  **Profile options:**
+  - `sunny_day` - Typical sunny day with strong solar production
+  - `cloudy_day` - Variable solar with frequent clouds
+  - `winter_day` - Low solar production profile
+
+  **Default**: Enabled with `sunny_day` profile
+
+  <Tip>
+    Start with simulation mode to familiarize yourself with the sensors and dashboard before connecting real hardware.
+  </Tip>
+</Accordion>
+
+<Accordion title="Real mode (production use)">
+  **Setting**: Simulation = OFF
+  
+  When disabled, you must provide two entity IDs:
+  
+  **Solar power entity**: Sensor reporting current solar production in watts
+  ```
+  Example: sensor.solar_inverter_power
+  ```
+  
+  **Load power entity**: Sensor reporting current home consumption in watts
+  ```
+  Example: sensor.home_power
+  ```
+
+  <Warning>
+    Both entities must exist, be available, report numeric values, and use W or kW units. The integration validates these requirements during setup.
+  </Warning>
+
+  **Validation errors:**
+  - `real_entities_required` - You must provide both solar and load entities
+  - `real_entity_not_found` - Entity ID doesn't exist in your Home Assistant
+  - `real_entity_unavailable` - Entity exists but is unavailable or unknown
+  - `real_entity_not_numeric` - Entity state is not a number
+  - `real_entity_unit_not_w` - Entity doesn't use W or kW units
+</Accordion>
+
+### Alert thresholds
+
+Configure when you want to receive notifications about sustained energy conditions:
+
+<CardGroup cols={2}>
+  <Card title="Import threshold" icon="arrow-down">
+    **Setting**: `import_threshold_w`
+    
+    Grid import power (in watts) that triggers import alerts.
+    
+    **Default**: 800W
+    **Range**: 0-20000W (step: 100W)
+    
+    Example: Set to 500W if you want alerts when importing more than 500W for the configured duration.
+  </Card>
+  
+  <Card title="Export threshold" icon="arrow-up">
+    **Setting**: `export_threshold_w`
+    
+    Grid export power (in watts) that triggers export alerts and load optimization.
+    
+    **Default**: 800W
+    **Range**: 0-20000W (step: 100W)
+    
+    Example: Set to 1000W if you only want to act on surplus above 1000W.
+  </Card>
+</CardGroup>
+
+<Card title="Duration threshold" icon="clock">
+  **Setting**: `duration_threshold_min`
+  
+  How long (in minutes) a condition must persist before triggering alerts or optimization actions.
+  
+  **Default**: 10 minutes
+  **Range**: 1-180 minutes (step: 1 minute)
+  
+  This prevents false alarms from brief spikes or dips in solar production.
+</Card>
+
+<Info>
+  These thresholds work together. For example: "Alert me when exporting more than 800W for at least 10 minutes."
+</Info>
+
+### Optimization settings
+
+Control whether and how Energy Control Pro automatically manages your loads:
+
+<Accordion title="Enable optimization">
+  **Setting**: `optimization_enabled`
+  
+  Master switch for the optimization engine.
+  
+  **Default**: Disabled (false)
+  
+  When enabled:
+  - Creates `switch.energy_control_pro_optimization` entity
+  - Creates `select.energy_control_pro_strategy` entity
+  - Enables automatic load control based on your configuration
+
+  <Warning>
+    Enable this only after you've configured at least one load entity. The optimization switch appears but does nothing without configured loads.
+  </Warning>
+</Accordion>
+
+<Accordion title="Optimization strategy">
+  **Setting**: `strategy`
+  
+  Choose the optimization behavior:
+  
+  **maximize_self_consumption** (default):
+  - Focuses on turning on loads when sustained surplus exists
+  - Turns off loads when importing from grid
+  - Best for maximizing use of solar energy
+  
+  **avoid_grid_import**:
+  - Prioritizes reducing grid import
+  - More conservative about turning loads on
+  - Best for minimizing grid dependency
+  
+  **balanced**:
+  - Balanced approach between the two strategies
+  - Good compromise for most users
+
+  <Tip>
+    You can change the strategy at runtime using the `select.energy_control_pro_strategy` entity without reconfiguring the integration.
+  </Tip>
+</Accordion>
+
+### Load configuration
+
+Energy Control Pro can control up to 3 loads (switch or input_boolean entities). Each load has identical configuration options:
+
+<Steps>
+  <Step title="Select entity">
+    **Setting**: `load_1_entity`, `load_2_entity`, `load_3_entity`
+    
+    Choose a switch or input_boolean entity to control.
+    
+    ```
+    Examples:
+    - switch.water_heater
+    - switch.car_charger
+    - input_boolean.pool_pump
+    ```
+    
+    Leave empty to skip that load slot.
+  </Step>
+  
+  <Step title="Set minimum surplus">
+    **Setting**: `load_X_min_surplus_w`
+    
+    Minimum surplus power (in watts) required before this load can be turned on.
+    
+    **Default**: 1200W per load
+    **Range**: 0-20000W (step: 100W)
+    
+    Example: Set to 2000W for a 2kW water heater, 1500W for a 1.5kW car charger.
+  </Step>
+  
+  <Step title="Set minimum on-time">
+    **Setting**: `load_X_min_on_time_min`
+    
+    Minimum duration (in minutes) this load must stay on before it can be turned off.
+    
+    **Default**: 10 minutes
+    **Range**: 0-180 minutes (step: 1 minute)
+    
+    Prevents rapid cycling of devices that need warm-up time or shouldn't be interrupted frequently.
+  </Step>
+  
+  <Step title="Set cooldown period">
+    **Setting**: `load_X_cooldown_min`
+    
+    Minimum duration (in minutes) to wait after turning off before this load can be turned on again.
+    
+    **Default**: 10 minutes
+    **Range**: 0-180 minutes (step: 1 minute)
+    
+    Protects devices like compressors that shouldn't restart immediately.
+  </Step>
+  
+  <Step title="Set priority">
+    **Setting**: `load_X_priority`
+    
+    Priority level for this load. Lower numbers have higher priority.
+    
+    **Default**: 1 for load 1, 2 for load 2, 3 for load 3
+    **Range**: 1-3
+    
+    **How priority works:**
+    - When turning **ON**: Highest priority (lowest number) loads turn on first
+    - When turning **OFF**: Lowest priority (highest number) loads turn off first
+  </Step>
+</Steps>
+
+<Note>
+  All load settings are optional. Leave entity fields empty for loads you don't want to configure.
+</Note>
+
+## Configuration examples
+
+<Accordion title="Simple setup: Water heater only">
+  ```yaml
+  # Mode
+  Simulation: OFF
+  Solar Power Entity: sensor.solar_power
+  Load Power Entity: sensor.home_consumption
+  
+  # Thresholds
+  Import Threshold: 500W
+  Export Threshold: 1000W
+  Duration Threshold: 15 minutes
+  
+  # Optimization
+  Optimization Enabled: true
+  Strategy: maximize_self_consumption
+  
+  # Load 1: Water heater (2000W)
+  Load 1 Entity: switch.water_heater
+  Load 1 Min Surplus: 2000W
+  Load 1 Min On Time: 30 minutes (let it heat fully)
+  Load 1 Cooldown: 60 minutes (avoid frequent cycling)
+  Load 1 Priority: 1
+  
+  # Load 2 & 3: Not configured
+  ```
+</Accordion>
+
+<Accordion title="Advanced setup: Three loads with priorities">
+  ```yaml
+  # Mode
+  Simulation: OFF
+  Solar Power Entity: sensor.solar_inverter_ac_power
+  Load Power Entity: sensor.house_load
+  
+  # Thresholds
+  Import Threshold: 800W
+  Export Threshold: 800W
+  Duration Threshold: 10 minutes
+  
+  # Optimization
+  Optimization Enabled: true
+  Strategy: maximize_self_consumption
+  
+  # Load 1: Car charger (HIGH priority, 3.5kW)
+  Load 1 Entity: switch.car_charger
+  Load 1 Min Surplus: 3500W
+  Load 1 Min On Time: 15 minutes
+  Load 1 Cooldown: 5 minutes
+  Load 1 Priority: 1 (turns on first, turns off last)
+  
+  # Load 2: Water heater (MEDIUM priority, 2kW)
+  Load 2 Entity: switch.hot_water_heater
+  Load 2 Min Surplus: 2000W
+  Load 2 Min On Time: 30 minutes
+  Load 2 Cooldown: 60 minutes
+  Load 2 Priority: 2 (turns on second, turns off second)
+  
+  # Load 3: Pool pump (LOW priority, 800W)
+  Load 3 Entity: switch.pool_pump
+  Load 3 Min Surplus: 800W
+  Load 3 Min On Time: 20 minutes
+  Load 3 Cooldown: 10 minutes
+  Load 3 Priority: 3 (turns on last, turns off first)
+  ```
+  
+  **Behavior:**
+  - With 4000W surplus: Car charger turns on (priority 1)
+  - With 6500W surplus: Water heater also turns on (priority 2)
+  - With 8000W surplus: Pool pump also turns on (priority 3)
+  - When importing: Pool pump turns off first, then water heater, then car charger
+</Accordion>
+
+<Accordion title="Testing setup: Simulation mode">
+  ```yaml
+  # Mode
+  Simulation: ON
+  Profile: sunny_day
+  
+  # Thresholds
+  Import Threshold: 800W (default)
+  Export Threshold: 800W (default)
+  Duration Threshold: 10 minutes (default)
+  
+  # Optimization
+  Optimization Enabled: true
+  Strategy: maximize_self_consumption
+  
+  # Load 1: Test with input boolean
+  Load 1 Entity: input_boolean.test_load
+  Load 1 Min Surplus: 1200W (default)
+  Load 1 Min On Time: 10 minutes (default)
+  Load 1 Cooldown: 10 minutes (default)
+  Load 1 Priority: 1 (default)
+  
+  # Load 2 & 3: Not configured
+  ```
+  
+  <Tip>
+    Use simulation mode with input_boolean helpers to test the optimization logic before connecting real devices.
+  </Tip>
+</Accordion>
+
+## Reconfiguring
+
+You can change any setting at any time without removing the integration:
+
+<Steps>
+  <Step title="Open options">
+    Go to **Settings** → **Devices & Services**.
+    
+    Find **Energy Control Pro** and click **Configure**.
+  </Step>
+  
+  <Step title="Modify settings">
+    The same configuration form appears with your current values.
+    
+    Change any settings you want to update.
+  </Step>
+  
+  <Step title="Save changes">
+    Click **Submit** to save.
+    
+    The integration reloads automatically with the new configuration.
+  </Step>
+</Steps>
+
+<Warning>
+  When switching from simulation to real mode (or vice versa), the integration reloads and sensor history may be interrupted.
+</Warning>
+
+## Runtime controls
+
+After enabling optimization, you get runtime control entities:
+
+<Card title="Optimization switch" icon="toggle-on">
+  **Entity**: `switch.energy_control_pro_optimization`
+  
+  Turn optimization on or off without reconfiguring:
+  ```yaml
+  # Turn optimization on
+  service: switch.turn_on
+  target:
+    entity_id: switch.energy_control_pro_optimization
+  
+  # Turn optimization off
+  service: switch.turn_off
+  target:
+    entity_id: switch.energy_control_pro_optimization
+  ```
+  
+  Use this to temporarily disable optimization during maintenance or when you want manual control.
+</Card>
+
+<Card title="Strategy selector" icon="list">
+  **Entity**: `select.energy_control_pro_strategy`
+  
+  Change the optimization strategy at runtime:
+  ```yaml
+  service: select.select_option
+  target:
+    entity_id: select.energy_control_pro_strategy
+  data:
+    option: maximize_self_consumption
+  ```
+  
+  Options: `maximize_self_consumption`, `avoid_grid_import`, `balanced`
+</Card>
+
+## Validation errors
+
+The configuration flow validates your settings and shows specific errors:
+
+| Error Code | Meaning | Solution |
+|------------|---------|----------|
+| `real_entities_required` | Real mode selected but solar or load entity missing | Provide both entity IDs or enable simulation |
+| `real_entity_not_found` | Entity ID doesn't exist | Check the entity ID in Developer Tools → States |
+| `real_entity_unavailable` | Entity exists but state is unavailable/unknown | Fix the underlying sensor integration |
+| `real_entity_not_numeric` | Entity state is not a number | Ensure sensor reports numeric values |
+| `real_entity_unit_not_w` | Entity doesn't use W or kW units | Use a power sensor, not an energy sensor |
+
+<Tip>
+  Use **Developer Tools** → **States** to verify your entity IDs and check their current state and attributes before configuring.
+</Tip>
+
+## What's next?
+
+With Energy Control Pro configured, you're ready to:
+
+- Monitor your energy sensors in the dashboard
+- Set up automations based on Energy Control Pro sensors
+- Enable optimization to start automatic load control
+- Check `sensor.energy_control_pro_last_action` to see optimization decisions

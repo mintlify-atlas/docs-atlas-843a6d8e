@@ -1,0 +1,461 @@
+---
+title: 'Simulation Mode'
+description: 'Test and develop with realistic energy profiles without physical hardware'
+---
+
+## Overview
+
+Simulation mode generates realistic solar production and household load data based on time-of-day patterns, allowing you to test Energy Control Pro's features without connecting to actual hardware sensors. This is invaluable for development, testing automations, and understanding system behavior.
+
+<Info>
+Simulation mode is the **default** when you first install Energy Control Pro.
+</Info>
+
+## Enabling Simulation Mode
+
+**Configuration Key** (const.py:7):
+```python
+CONF_SIMULATION = "simulation"
+```
+
+**Default Behavior** (coordinator.py:100-107):
+```python
+simulation = self._entry.options.get(
+    CONF_SIMULATION,
+    self._entry.data.get(CONF_SIMULATION, True),
+)
+profile = self._entry.options.get(
+    CONF_PROFILE,
+    self._entry.data.get(CONF_PROFILE, PROFILE_SUNNY_DAY),
+)
+```
+
+Set `simulation: true` in your configuration to enable simulation mode.
+
+## Simulation Profiles
+
+Three pre-configured profiles simulate different weather and seasonal conditions:
+
+### Sunny Day (Default)
+
+**Constant** (const.py:76):
+```python
+PROFILE_SUNNY_DAY = "sunny_day"
+```
+
+**Tuning Parameters** (logic.py:24-31):
+```python
+PROFILE_SUNNY_DAY: ProfileTuning(
+    solar_peak_w=6200,
+    day_length_h=14,
+    cloud_variability=0.06,
+    load_base_w=950,
+    load_evening_boost_w=850,
+)
+```
+
+<Card title="Sunny Day Characteristics" icon="sun">
+  - **Peak Solar**: 6200W
+  - **Daylight Hours**: 14 hours (5am - 7pm)
+  - **Cloud Variability**: 6% (very stable)
+  - **Base Load**: 950W
+  - **Evening Peak**: +850W (19:00 centered)
+</Card>
+
+### Cloudy Day
+
+**Constant** (const.py:77):
+```python
+PROFILE_CLOUDY_DAY = "cloudy_day"
+```
+
+**Tuning Parameters** (logic.py:32-38):
+```python
+PROFILE_CLOUDY_DAY: ProfileTuning(
+    solar_peak_w=3600,
+    day_length_h=12,
+    cloud_variability=0.20,
+    load_base_w=1050,
+    load_evening_boost_w=800,
+)
+```
+
+<Card title="Cloudy Day Characteristics" icon="cloud">
+  - **Peak Solar**: 3600W (58% of sunny day)
+  - **Daylight Hours**: 12 hours (6am - 6pm)
+  - **Cloud Variability**: 20% (significant fluctuations)
+  - **Base Load**: 1050W
+  - **Evening Peak**: +800W
+</Card>
+
+### Winter Day
+
+**Constant** (const.py:78):
+```python
+PROFILE_WINTER_DAY = "winter_day"
+```
+
+**Tuning Parameters** (logic.py:39-45):
+```python
+PROFILE_WINTER_DAY: ProfileTuning(
+    solar_peak_w=2400,
+    day_length_h=9,
+    cloud_variability=0.15,
+    load_base_w=1250,
+    load_evening_boost_w=1000,
+)
+```
+
+<Card title="Winter Day Characteristics" icon="snowflake">
+  - **Peak Solar**: 2400W (39% of sunny day)
+  - **Daylight Hours**: 9 hours (7:30am - 4:30pm)
+  - **Cloud Variability**: 15% (moderate fluctuations)
+  - **Base Load**: 1250W (higher heating load)
+  - **Evening Peak**: +1000W (increased evening usage)
+</Card>
+
+## Simulation Algorithm
+
+The simulation engine generates power values based on current time and profile characteristics:
+
+### Core Simulation Function
+
+**Function Signature** (logic.py:53-62):
+```python
+def simulate(
+    profile: str,
+    now: datetime,
+    *,
+    cloud_noise: float | None = None,
+    appliance_noise: float | None = None,
+    profile_tuning: dict[str, ProfileTuning] | None = None,
+) -> tuple[int, int]:
+    """Simulate solar/load power in W for a profile at a specific instant."""
+```
+
+### Solar Generation Model
+
+**Implementation** (logic.py:63-80):
+```python
+tuning_map = profile_tuning or PROFILE_TUNING
+tuning = tuning_map.get(profile, tuning_map[PROFILE_SUNNY_DAY])
+
+sunrise = 12 - (tuning.day_length_h / 2)
+sunset = 12 + (tuning.day_length_h / 2)
+hour = now.hour + (now.minute / 60) + (now.second / 3600)
+
+if sunrise <= hour <= sunset:
+    phase = (hour - sunrise) / max((sunset - sunrise), 0.1)
+    daylight_factor = math.sin(math.pi * phase)
+else:
+    daylight_factor = 0.0
+
+cloud_noise_val = (
+    cloud_noise
+    if cloud_noise is not None
+    else random.uniform(-tuning.cloud_variability, tuning.cloud_variability)
+)
+solar_w = max(0, int(tuning.solar_peak_w * daylight_factor * (1 + cloud_noise_val)))
+```
+
+<Steps>
+  <Step title="Calculate Sunrise/Sunset">
+    Sunrise and sunset times are centered at noon based on `day_length_h`
+  </Step>
+  
+  <Step title="Compute Daylight Factor">
+    Use sine curve to model solar intensity: `sin(π * phase)` where phase ranges 0→1 from sunrise to sunset
+  </Step>
+  
+  <Step title="Apply Cloud Variability">
+    Add random noise within `±cloud_variability` to simulate cloud cover
+  </Step>
+  
+  <Step title="Calculate Solar Output">
+    Multiply `solar_peak_w * daylight_factor * (1 + noise)`
+  </Step>
+</Steps>
+
+<Card title="Solar Curve Shape" icon="chart-line">
+  The sine curve produces a realistic bell-shaped generation curve that peaks at solar noon and tapers to zero at sunrise/sunset.
+</Card>
+
+### Load Consumption Model
+
+**Implementation** (logic.py:82-92):
+```python
+morning_peak = 250 * math.exp(-((hour - 7.5) ** 2) / 3.0)
+evening_peak = tuning.load_evening_boost_w * math.exp(-((hour - 19.0) ** 2) / 4.5)
+appliance_noise_val = (
+    appliance_noise if appliance_noise is not None else random.uniform(-120, 180)
+)
+load_w = max(
+    200,
+    int(tuning.load_base_w + morning_peak + evening_peak + appliance_noise_val),
+)
+
+return solar_w, load_w
+```
+
+<Steps>
+  <Step title="Base Load">
+    Constant baseline consumption from always-on appliances (`load_base_w`)
+  </Step>
+  
+  <Step title="Morning Peak">
+    Gaussian curve centered at 7:30am with 250W peak (breakfast, showers)
+  </Step>
+  
+  <Step title="Evening Peak">
+    Gaussian curve centered at 7:00pm with profile-specific boost (cooking, lighting, entertainment)
+  </Step>
+  
+  <Step title="Appliance Noise">
+    Random variation (±120-180W) to simulate appliances turning on/off
+  </Step>
+  
+  <Step title="Minimum Floor">
+    Ensure load never drops below 200W
+  </Step>
+</Steps>
+
+## Data Structure
+
+### ProfileTuning Dataclass
+
+**Definition** (logic.py:13-22):
+```python
+@dataclass(frozen=True)
+class ProfileTuning:
+    """Tuning values for generation/load simulation."""
+
+    solar_peak_w: float
+    day_length_h: float
+    cloud_variability: float
+    load_base_w: float
+    load_evening_boost_w: float
+```
+
+<AccordionGroup>
+  <Accordion title="solar_peak_w" icon="bolt">
+    Maximum solar generation in watts when sun is at peak position (noon) with clear skies
+  </Accordion>
+  
+  <Accordion title="day_length_h" icon="clock">
+    Total daylight hours, centered at noon. Affects sunrise and sunset times.
+  </Accordion>
+  
+  <Accordion title="cloud_variability" icon="cloud">
+    Fractional random variation applied to solar output (0.06 = ±6%)
+  </Accordion>
+  
+  <Accordion title="load_base_w" icon="house">
+    Constant baseline household consumption throughout the day
+  </Accordion>
+  
+  <Accordion title="load_evening_boost_w" icon="moon">
+    Additional consumption peak in evening hours (centered at 7pm)
+  </Accordion>
+</AccordionGroup>
+
+## Simulation Invocation
+
+**Coordinator Entry Point** (coordinator.py:109-112):
+```python
+if simulation:
+    data = self._simulate_values(profile, now=now)
+else:
+    data = self._real_values_from_entities()
+```
+
+**Simulation Wrapper** (coordinator.py:390-393):
+```python
+def _simulate_values(self, profile: str, *, now: datetime) -> dict[str, int]:
+    """Generate realistic-ish power values for the selected profile."""
+    solar_w, load_w = simulate(profile, now=now)
+    return calculate_balance(solar_w, load_w)
+```
+
+<Note>
+Simulation calls `calculate_balance()` just like real mode, ensuring consistent data structure regardless of source.
+</Note>
+
+## Testing Different Times
+
+Simulation uses the **current system time**, so you can observe different behaviors throughout the day:
+
+<Tabs>
+  <Tab title="Morning (7:30am)">
+    - Low solar production (rising)
+    - Morning load peak
+    - Likely importing from grid
+  </Tab>
+  
+  <Tab title="Midday (12:00pm)">
+    - Peak solar production
+    - Moderate load
+    - Likely exporting to grid (especially sunny_day)
+  </Tab>
+  
+  <Tab title="Evening (7:00pm)">
+    - Declining solar production
+    - Evening load peak
+    - Likely importing from grid
+  </Tab>
+  
+  <Tab title="Night (11:00pm)">
+    - Zero solar production
+    - Base load only
+    - Importing from grid
+  </Tab>
+</Tabs>
+
+## Profile Comparison
+
+Visual comparison of profiles at solar noon:
+
+| Metric | Sunny Day | Cloudy Day | Winter Day |
+|--------|-----------|------------|------------|
+| **Solar Peak** | 6200W | 3600W | 2400W |
+| **% of Sunny** | 100% | 58% | 39% |
+| **Daylight** | 14h | 12h | 9h |
+| **Variability** | ±6% | ±20% | ±15% |
+| **Base Load** | 950W | 1050W | 1250W |
+| **Evening Peak** | +850W | +800W | +1000W |
+
+## Switching to Real Mode
+
+When ready to use actual hardware:
+
+<Steps>
+  <Step title="Configure Entities">
+    Set `solar_power_entity` and `load_power_entity` to your actual sensors
+  </Step>
+  
+  <Step title="Disable Simulation">
+    Set `simulation: false` in configuration
+  </Step>
+  
+  <Step title="Reload Integration">
+    Reload Energy Control Pro or restart Home Assistant
+  </Step>
+  
+  <Step title="Verify Data">
+    Check that sensors show realistic values from your hardware
+  </Step>
+</Steps>
+
+**Real Mode Implementation** (coordinator.py:145-157):
+```python
+def _real_values_from_entities(self) -> dict[str, int]:
+    """Read solar/load from mapped entities and derive all metrics in W."""
+    solar_entity_id = str(self._get_option(CONF_SOLAR_POWER_ENTITY, "") or "")
+    load_entity_id = str(self._get_option(CONF_LOAD_POWER_ENTITY, "") or "")
+
+    if not solar_entity_id or not load_entity_id:
+        raise UpdateFailed(
+            "Real mode requires solar_power_entity and load_power_entity in options"
+        )
+
+    solar_w = self._read_power_w(solar_entity_id)
+    load_w = self._read_power_w(load_entity_id)
+    return calculate_balance(solar_w, load_w)
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Development" icon="code">
+    Test optimization logic without waiting for actual solar conditions
+  </Card>
+  
+  <Card title="Automation Testing" icon="robot">
+    Verify automations trigger correctly at different times of day
+  </Card>
+  
+  <Card title="UI Development" icon="desktop">
+    Build dashboards and visualizations with consistent data
+  </Card>
+  
+  <Card title="Training" icon="graduation-cap">
+    Demonstrate system behavior to users without hardware
+  </Card>
+</CardGroup>
+
+## Simulation Determinism
+
+Simulation includes **random noise** for realism:
+
+- **Cloud variability**: Random within `±cloud_variability`
+- **Appliance noise**: Random between -120W and +180W
+
+For **deterministic testing**, pass explicit noise values:
+
+```python
+solar_w, load_w = simulate(
+    "sunny_day",
+    now=datetime(2026, 3, 4, 12, 0),
+    cloud_noise=0.0,        # No cloud variation
+    appliance_noise=0.0,     # No appliance variation
+)
+```
+
+<Warning>
+The coordinator always uses random noise in normal operation. Deterministic mode is only available when calling `simulate()` directly (e.g., in tests).
+</Warning>
+
+## Example Configuration
+
+```yaml
+# Enable simulation mode with cloudy day profile
+simulation: true
+profile: cloudy_day
+
+# Optional: configure thresholds for testing alerts
+export_threshold_w: 500
+import_threshold_w: 300
+duration_threshold_min: 5
+```
+
+## Debugging Simulation
+
+View current simulated values in Home Assistant:
+
+```yaml
+type: entities
+entities:
+  - sensor.solar_power
+  - sensor.load_power
+  - sensor.surplus_power
+  - sensor.grid_import_power
+  - sensor.grid_export_power
+  - sensor.energy_state
+```
+
+Or check the coordinator data in Developer Tools > States:
+
+```yaml
+sensor.solar_power
+  state: 4523
+  attributes:
+    unit_of_measurement: W
+    device_class: power
+    icon: mdi:solar-power
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Energy Monitoring" icon="chart-line" href="/features/energy-monitoring">
+    Learn about the sensors populated by simulation
+  </Card>
+  <Card title="Load Optimization" icon="gauge-high" href="/features/load-optimization">
+    Test optimization with simulated data
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure simulation profiles and parameters
+  </Card>
+  <Card title="Real Mode Setup" icon="plug" href="/guides/real-mode-setup">
+    Switch to actual hardware sensors
+  </Card>
+</CardGroup>

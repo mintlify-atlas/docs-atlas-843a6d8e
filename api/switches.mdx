@@ -1,0 +1,105 @@
+---
+title: Switches
+description: Switch entities for controlling Energy Control Pro optimization
+---
+
+Energy Control Pro provides a switch entity to enable or disable the optimization runtime system.
+
+## Optimization Switch
+
+<ParamField path="switch.energy_control_pro_optimization" type="switch">
+  Global switch to enable or disable optimization functionality.
+
+  This switch controls whether Energy Control Pro actively manages connected loads based on available solar surplus. When enabled, the system monitors power flows and automatically turns loads on/off according to the selected strategy. When disabled, no optimization actions are performed.
+
+  <ResponseField name="name" type="string" default="Energy Control Pro Optimization">
+    Display name of the switch entity
+  </ResponseField>
+
+  <ResponseField name="unique_id" type="string">
+    Format: `{entry_id}_optimization`
+  </ResponseField>
+
+  <ResponseField name="icon" type="string" default="mdi:tune-variant">
+    Material Design Icon identifier
+  </ResponseField>
+
+  <ResponseField name="is_on" type="boolean">
+    Current state of the optimization switch
+    - `true`: Optimization is enabled and active
+    - `false`: Optimization is disabled
+  </ResponseField>
+</ParamField>
+
+## Services
+
+The switch supports standard Home Assistant switch services:
+
+### Turn On
+
+Enables the optimization engine.
+
+```yaml
+service: switch.turn_on
+target:
+  entity_id: switch.energy_control_pro_optimization
+```
+
+### Turn Off
+
+Disables the optimization engine.
+
+```yaml
+service: switch.turn_off
+target:
+  entity_id: switch.energy_control_pro_optimization
+```
+
+### Toggle
+
+Toggles the optimization state.
+
+```yaml
+service: switch.toggle
+target:
+  entity_id: switch.energy_control_pro_optimization
+```
+
+## Implementation Details
+
+<ResponseField name="Coordinator Method (On)" type="method">
+  `async_set_optimization_enabled(True)` - Called when turning on
+</ResponseField>
+
+<ResponseField name="Coordinator Method (Off)" type="method">
+  `async_set_optimization_enabled(False)` - Called when turning off
+</ResponseField>
+
+<ResponseField name="State Source" type="data_key">
+  The switch state is read from coordinator data key `optimization_enabled`
+</ResponseField>
+
+## Usage Example
+
+### Automation to Enable During Peak Solar Hours
+
+```yaml
+automation:
+  - alias: "Enable optimization during solar hours"
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.energy_control_pro_optimization
+
+  - alias: "Disable optimization at night"
+    trigger:
+      - platform: time
+        at: "20:00:00"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.energy_control_pro_optimization
+```

@@ -1,0 +1,164 @@
+---
+title: Installation
+description: Install Energy Control Pro through HACS and get started in minutes.
+---
+
+Energy Control Pro is distributed through HACS (Home Assistant Community Store) for easy installation and automatic updates.
+
+## Requirements
+
+Before installing Energy Control Pro, make sure you meet these requirements:
+
+<Warning>
+  **Home Assistant 2024.1.0 or later is required.** Earlier versions are not supported.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="HACS installed" icon="cube">
+    You need HACS (Home Assistant Community Store) installed in your Home Assistant instance.
+  </Card>
+  
+  <Card title="Solar power sensor" icon="solar-panel">
+    A sensor entity that reports solar power in watts (W) - only required for real mode.
+  </Card>
+  
+  <Card title="Load power sensor" icon="house">
+    A sensor entity that reports home load power in watts (W) - only required for real mode.
+  </Card>
+  
+  <Card title="Switch entities" icon="toggle-on">
+    Optional: switch or input_boolean entities for loads you want to control automatically.
+  </Card>
+</CardGroup>
+
+<Info>
+  If you don't have real sensors yet, you can use simulation mode to test the integration with built-in solar profiles.
+</Info>
+
+## Power sensor requirements
+
+For real mode (non-simulation), your solar and load sensors must meet these criteria:
+
+- Entity domain must be `sensor`
+- State must be numeric (not unavailable or unknown)
+- Unit of measurement must be watts (W) or kilowatts (kW)
+- Values must be current power readings (not energy totals)
+
+<Accordion title="Example compatible sensors">
+  ```yaml
+  # Solar inverter power sensor
+  sensor.solar_inverter_power
+  # State: 1500
+  # Unit: W
+
+  # Home power consumption sensor
+  sensor.home_power
+  # State: 850
+  # Unit: W
+  ```
+
+  The integration validates these sensors during setup and shows clear error messages if they don't meet requirements.
+</Accordion>
+
+## Installation steps
+
+Follow these steps to install Energy Control Pro through HACS:
+
+<Steps>
+  <Step title="Open HACS">
+    In your Home Assistant sidebar, click on **HACS**.
+  </Step>
+  
+  <Step title="Go to integrations">
+    Click the **Integrations** tab in HACS.
+  </Step>
+  
+  <Step title="Add custom repository">
+    Click the three-dot menu in the top right, then select **Custom repositories**.
+    
+    Add this repository:
+    ```
+    https://github.com/springerd/energy-control-pro
+    ```
+    
+    Category: **Integration**
+  </Step>
+  
+  <Step title="Search and install">
+    Search for **Energy Control Pro** in HACS and click **Install**.
+  </Step>
+  
+  <Step title="Restart Home Assistant">
+    After installation completes, restart Home Assistant to load the integration.
+    
+    <Warning>
+      The restart is required. The integration will not appear in Settings until you restart.
+    </Warning>
+  </Step>
+</Steps>
+
+## Verify installation
+
+After restarting Home Assistant, verify the integration is available:
+
+<Steps>
+  <Step title="Open Settings">
+    Go to **Settings** → **Devices & Services**.
+  </Step>
+  
+  <Step title="Add integration">
+    Click **Add Integration** and search for "Energy Control Pro".
+    
+    If you see it in the list, installation was successful!
+  </Step>
+</Steps>
+
+<Note>
+  Only one instance of Energy Control Pro can be installed. The integration enforces a unique ID to prevent duplicate configurations.
+</Note>
+
+## Troubleshooting
+
+<Accordion title="Integration doesn't appear after restart">
+  **Check the logs:**
+  1. Go to **Settings** → **System** → **Logs**
+  2. Filter by `energy_control_pro`
+  3. Look for any error messages during startup
+
+  **Common causes:**
+  - Home Assistant version too old (need 2024.1.0+)
+  - HACS installation didn't complete properly
+  - Home Assistant didn't fully restart
+</Accordion>
+
+<Accordion title="HACS shows download failed">
+  **Try these steps:**
+  1. Check your internet connection
+  2. Verify the repository URL is correct
+  3. Try removing and re-adding the custom repository
+  4. Check HACS logs for network errors
+</Accordion>
+
+<Accordion title="Can't find integration after HACS install">
+  **Make sure you:**
+  1. Completed the HACS installation (shows as "Installed" in HACS)
+  2. Restarted Home Assistant after installation
+  3. Waited for the restart to complete fully
+  4. Cleared your browser cache and refreshed the page
+</Accordion>
+
+## Updating
+
+HACS automatically checks for updates to Energy Control Pro. When an update is available:
+
+1. You'll see an update notification in HACS
+2. Click **Update** in the Energy Control Pro entry
+3. Restart Home Assistant to load the new version
+
+<Tip>
+  Energy Control Pro follows semantic versioning. Patch updates (0.1.x) are safe and backward-compatible. Minor updates (0.x.0) add features but remain compatible. Major updates (x.0.0) may require configuration changes.
+</Tip>
+
+## Next steps
+
+Now that Energy Control Pro is installed, continue to [configuration](/configuration) to set up the integration with your solar system.

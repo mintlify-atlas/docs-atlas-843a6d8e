@@ -1,0 +1,349 @@
+---
+title: Optimization Strategies
+description: Understanding the three optimization strategies and how they affect load control decisions
+---
+
+Energy Control Pro includes three distinct optimization strategies that determine when and how loads are activated. The strategy you choose affects decision priority and behavior.
+
+## Available Strategies
+
+The integration provides three strategies defined in `const.py:43-50`:
+
+- `maximize_self_consumption` (default)
+- `avoid_grid_import`
+- `balanced`
+
+## Strategy Behaviors
+
+### Maximize Self Consumption
+
+**Goal:** Prioritize using available solar surplus before worrying about grid import.
+
+**Decision Order:**
+1. **Turn ON loads** when surplus is sustained
+2. **Turn OFF loads** when grid import is sustained
+
+**When to use:**
+- You want to maximize usage of your solar production
+- Your priority is avoiding export to the grid
+- You're comfortable with occasional grid import if solar isn't sufficient
+- You want to heat water, charge batteries, or run high-consumption devices during peak solar hours
+
+**Example:**
+
+```
+Solar: 3000W
+Load: 1500W
+Surplus: 1500W (sustained for 10 minutes)
+
+✓ Turn ON switch.water_heater (requires 1200W surplus)
+  Reason: "surplus 1500W for 10 min"
+```
+
+### Avoid Grid Import
+
+**Goal:** Minimize grid import by turning off loads first.
+
+**Decision Order:**
+1. **Turn OFF loads** when grid import is sustained
+2. **Turn ON loads** when surplus is sustained
+
+**When to use:**
+- You want to minimize electricity costs
+- Peak demand charges make grid import expensive
+- You're on a time-of-use rate and want to avoid importing during peak hours
+- Battery capacity is limited and you want to preserve it
+
+**Example:**
+
+```
+Solar: 800W
+Load: 2000W
+Grid Import: 1200W (sustained for 10 minutes)
+
+✓ Turn OFF switch.water_heater
+  Reason: "import 1200W for 10 min"
+```
+
+**Code Implementation:**
+
+From `coordinator.py:274-290`, the `avoid_grid_import` strategy checks turn-off conditions first:
+
+```python
+if self._strategy == STRATEGY_AVOID_GRID_IMPORT:
+    action = decide_turn_off(
+        now=now,
+        grid_import_w=grid_import_w,
+        import_duration_min=import_duration_min,
+        import_threshold_w=import_threshold_w,
+        duration_threshold_min=duration_threshold_min,
+        loads=loads,
+        runtimes=runtimes,
+    ) or decide_turn_on(
+        now=now,
+        surplus_w=surplus_w,
+        export_duration_min=export_duration_min,
+        min_surplus_duration_min=duration_threshold_min,
+        loads=loads,
+        runtimes=runtimes,
+    )
+```
+
+### Balanced
+
+**Goal:** Balance between maximizing self-consumption and avoiding grid import.
+
+**Decision Order:**
+Same as `maximize_self_consumption` (turn on first, then turn off).
+
+<Note>
+In the current implementation (v0.1.x), `balanced` behaves identically to `maximize_self_consumption`. Future versions may add distinct balancing logic.
+</Note>
+
+**When to use:**
+- You want the default behavior
+- You're not sure which strategy fits your needs
+- You want to experiment before committing to a specific strategy
+
+## How Strategies Affect Decisions
+
+### Turn-On Decision Logic
+
+From `optimization/engine.py:50-77`, loads turn ON when:
+
+<Steps>
+  <Step title="Sustained surplus exists">
+    `export_duration_min >= min_surplus_duration_min`
+    
+    Default: 10 minutes of continuous export
+  </Step>
+  
+  <Step title="Surplus meets load requirement">
+    `surplus_w >= load.min_surplus_w`
+    
+    Default: 1200W per load
+  </Step>
+  
+  <Step title="Load is currently OFF">
+    `runtime.is_on == False`
+  </Step>
+  
+  <Step title="Cooldown has passed">
+    Time since last turn-off ≥ `cooldown_min`
+    
+    Default: 10 minutes
+  </Step>
+  
+  <Step title="Highest priority load selected">
+    Among eligible loads, the one with the lowest `priority` number wins.
+    
+    Priority 1 > Priority 2 > Priority 3
+  </Step>
+</Steps>
+
+### Turn-Off Decision Logic
+
+From `optimization/engine.py:80-108`, loads turn OFF when:
+
+<Steps>
+  <Step title="Sustained grid import exists">
+    `grid_import_w >= import_threshold_w`
+    
+    Default: 800W
+  </Step>
+  
+  <Step title="Import duration threshold met">
+    `import_duration_min >= duration_threshold_min`
+    
+    Default: 10 minutes
+  </Step>
+  
+  <Step title="Load is currently ON">
+    `runtime.is_on == True`
+  </Step>
+  
+  <Step title="Minimum on-time has passed">
+    Time since last turn-on ≥ `min_on_time_min`
+    
+    Default: 10 minutes
+  </Step>
+  
+  <Step title="Lowest priority load selected">
+    Among eligible loads, the one with the highest `priority` number turns off first.
+    
+    Priority 3 turns off before Priority 2 before Priority 1
+  </Step>
+</Steps>
+
+## Changing Strategies at Runtime
+
+### Using the UI
+
+<Steps>
+  <Step title="Navigate to the integration">
+    Go to **Settings → Devices & Services → Energy Control Pro**.
+  </Step>
+  
+  <Step title="Use the strategy selector">
+    Find `select.energy_control_pro_strategy` and choose:
+    - Maximize Self Consumption
+    - Avoid Grid Import
+    - Balanced
+  </Step>
+  
+  <Step title="Strategy takes effect immediately">
+    The next optimization cycle (within 10 seconds) will use the new strategy.
+  </Step>
+</Steps>
+
+### Using Automations
+
+You can change strategies dynamically based on conditions:
+
+```yaml
+automation:
+  - alias: "Use avoid_grid_import during peak hours"
+    trigger:
+      - platform: time
+        at: "17:00:00"
+    action:
+      - service: select.select_option
+        target:
+          entity_id: select.energy_control_pro_strategy
+        data:
+          option: "avoid_grid_import"
+
+  - alias: "Use maximize_self_consumption during off-peak"
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    action:
+      - service: select.select_option
+        target:
+          entity_id: select.energy_control_pro_strategy
+        data:
+          option: "maximize_self_consumption"
+```
+
+## Strategy Configuration
+
+### Default Strategy
+
+Set in `const.py:37`:
+
+```python
+DEFAULT_STRATEGY = "maximize_self_consumption"
+```
+
+This is used when:
+- Creating a new integration instance
+- No strategy has been selected
+- Configuration is reset
+
+### Configuring Initial Strategy
+
+<Steps>
+  <Step title="During initial setup">
+    When adding the integration, select your preferred strategy from the **Strategy** dropdown.
+  </Step>
+  
+  <Step title="In configuration options">
+    Go to **Configure** and update the **Strategy** field.
+  </Step>
+</Steps>
+
+## Priority System Interaction
+
+All strategies respect load priority settings:
+
+### Priority Values
+
+- **Priority 1**: Highest priority (turns ON first, turns OFF last)
+- **Priority 2**: Medium priority
+- **Priority 3**: Lowest priority (turns ON last, turns OFF first)
+
+### Example Configuration
+
+```
+Load 1: switch.water_heater
+  Min Surplus: 1200W
+  Priority: 1
+
+Load 2: switch.pool_pump  
+  Min Surplus: 800W
+  Priority: 2
+
+Load 3: switch.ev_charger
+  Min Surplus: 2000W
+  Priority: 3
+```
+
+**Turn-ON sequence** (when sufficient surplus exists):
+1. Water heater (priority 1, needs 1200W)
+2. Pool pump (priority 2, needs 800W)
+3. EV charger (priority 3, needs 2000W)
+
+**Turn-OFF sequence** (when grid import is sustained):
+1. EV charger (priority 3) turns off first
+2. Pool pump (priority 2) turns off second
+3. Water heater (priority 1) turns off last
+
+## Anti-Flapping Protections
+
+All strategies include built-in protections from `const.py:39-41`:
+
+- **Minimum on-time**: 10 minutes (default)
+  - Prevents turning off loads too quickly after turning them on
+  
+- **Cooldown**: 10 minutes (default)
+  - Prevents turning on loads too quickly after turning them off
+  
+- **Duration threshold**: 10 minutes (default)
+  - Requires sustained conditions before taking action
+
+These values are configurable per load in the integration settings.
+
+## Monitoring Strategy Performance
+
+Track strategy effectiveness using:
+
+- **`sensor.energy_control_pro_last_action`**: Shows the most recent optimization decision
+  - Example: `"Turned ON switch.boiler (surplus 1100W for 10 min)"`
+  
+- **Integration logs**: Check `Settings → System → Logs` and filter for `energy_control_pro`
+  - Look for: `"Optimization action: Turned ON/OFF <entity_id> (<reason>)"`
+
+- **Energy state sensors**:
+  - `sensor.energy_control_pro_energy_state`
+  - `sensor.energy_control_pro_import_duration_min`
+  - `sensor.energy_control_pro_export_duration_min`
+
+## Best Practices
+
+<Steps>
+  <Step title="Start with maximize_self_consumption">
+    This is the most intuitive strategy for solar users.
+  </Step>
+  
+  <Step title="Test in simulation mode first">
+    Use simulation profiles to understand how each strategy behaves before connecting real loads.
+  </Step>
+  
+  <Step title="Adjust thresholds before changing strategies">
+    Often, tuning `import_threshold_w` and `export_threshold_w` is more effective than switching strategies.
+  </Step>
+  
+  <Step title="Use avoid_grid_import for cost optimization">
+    If you have time-of-use rates or demand charges, this strategy can reduce bills.
+  </Step>
+  
+  <Step title="Monitor for at least a week">
+    Give each strategy time to operate across various weather conditions before evaluating effectiveness.
+  </Step>
+</Steps>
+
+## Next Steps
+
+- [Configure load entities](/api/optimization-config) with appropriate priority and thresholds
+- [Set up the dashboard](/guides/dashboard-setup) to visualize optimization decisions
+- [Review troubleshooting](/guides/troubleshooting) if strategies aren't behaving as expected

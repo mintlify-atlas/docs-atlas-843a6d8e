@@ -1,0 +1,495 @@
+---
+title: 'Load Optimization'
+description: 'Intelligent load control with priority-based scheduling and anti-flapping protection'
+---
+
+## Overview
+
+The optimization engine automatically controls up to **3 switchable loads** based on available surplus solar power and grid import levels. It uses priority-based decision making with sophisticated anti-flapping mechanisms to prevent rapid on/off cycling.
+
+<Info>
+Optimization can be enabled/disabled at runtime without restarting Home Assistant.
+</Info>
+
+## Load Configuration
+
+Each load slot supports the following configuration parameters:
+
+### Load Slots
+
+<AccordionGroup>
+  <Accordion title="Load 1" icon="1">
+    **Configuration Keys** (const.py:16-20):
+    - `load_1_entity`: Switch entity ID
+    - `load_1_min_surplus_w`: Minimum surplus power required (default: 1200W)
+    - `load_1_min_on_time_min`: Minimum minutes to stay on (default: 10)
+    - `load_1_cooldown_min`: Minimum minutes between cycles (default: 10)
+    - `load_1_priority`: Priority level (default: 1, lowest first)
+  </Accordion>
+  
+  <Accordion title="Load 2" icon="2">
+    **Configuration Keys** (const.py:21-25):
+    - `load_2_entity`: Switch entity ID
+    - `load_2_min_surplus_w`: Minimum surplus power required (default: 1200W)
+    - `load_2_min_on_time_min`: Minimum minutes to stay on (default: 10)
+    - `load_2_cooldown_min`: Minimum minutes between cycles (default: 10)
+    - `load_2_priority`: Priority level (default: 2)
+  </Accordion>
+  
+  <Accordion title="Load 3" icon="3">
+    **Configuration Keys** (const.py:26-30):
+    - `load_3_entity`: Switch entity ID
+    - `load_3_min_surplus_w`: Minimum surplus power required (default: 1200W)
+    - `load_3_min_on_time_min`: Minimum minutes to stay on (default: 10)
+    - `load_3_cooldown_min`: Minimum minutes between cycles (default: 10)
+    - `load_3_priority`: Priority level (default: 3)
+  </Accordion>
+</AccordionGroup>
+
+### LoadConfig Data Structure
+
+**Definition** (engine.py:9-18):
+```python
+@dataclass(frozen=True)
+class LoadConfig:
+    """Static config for one controllable load."""
+
+    entity_id: str
+    min_surplus_w: int
+    min_on_time_min: int
+    cooldown_min: int
+    priority: int
+```
+
+## Runtime State Tracking
+
+The coordinator maintains runtime state for each configured load:
+
+### LoadRuntime Data Structure
+
+**Definition** (engine.py:20-27):
+```python
+@dataclass(frozen=True)
+class LoadRuntime:
+    """Runtime state for one controllable load."""
+
+    is_on: bool
+    last_on: datetime | None
+    last_off: datetime | None
+```
+
+**State Building** (coordinator.py:373-384):
+```python
+def _build_load_runtimes(self, loads: list[LoadConfig]) -> dict[str, LoadRuntime]:
+    """Build runtime map for configured loads from HA states and timers."""
+    runtimes: dict[str, LoadRuntime] = {}
+    for load in loads:
+        state = self.hass.states.get(load.entity_id)
+        is_on = bool(state and state.state == "on")
+        runtimes[load.entity_id] = LoadRuntime(
+            is_on=is_on,
+            last_on=self._load_last_on.get(load.entity_id),
+            last_off=self._load_last_off.get(load.entity_id),
+        )
+    return runtimes
+```
+
+<Note>
+The coordinator tracks `last_on` and `last_off` timestamps in memory (coordinator.py:75-76).
+</Note>
+
+## Decision Engine
+
+The optimization engine makes one decision per update cycle, choosing between turning loads on or off based on the configured strategy.
+
+### Turn On Decision
+
+**Function Signature** (engine.py:50-58):
+```python
+def decide_turn_on(
+    *,
+    now: datetime,
+    surplus_w: int,
+    export_duration_min: int,
+    min_surplus_duration_min: int,
+    loads: list[LoadConfig],
+    runtimes: dict[str, LoadRuntime],
+) -> EngineAction | None:
+```
+
+**Logic** (engine.py:59-77):
+```python
+"""Pick highest-priority OFF load eligible to turn on."""
+if export_duration_min < max(1, min_surplus_duration_min):
+    return None
+
+candidates = sorted(loads, key=lambda item: item.priority)
+for load in candidates:
+    runtime = runtimes[load.entity_id]
+    if runtime.is_on:
+        continue
+    if surplus_w < max(0, load.min_surplus_w):
+        continue
+    if not _cooldown_passed(now, runtime, load.cooldown_min):
+        continue
+    return EngineAction(
+        action="turn_on",
+        entity_id=load.entity_id,
+        reason=f"surplus {surplus_w}W for {export_duration_min} min",
+    )
+return None
+```
+
+<Steps>
+  <Step title="Check Export Duration">
+    Only proceed if exporting power for at least `min_surplus_duration_min` (default: 10 minutes)
+  </Step>
+  
+  <Step title="Sort by Priority">
+    Sort loads by priority (lowest number = highest priority)
+  </Step>
+  
+  <Step title="Find Eligible Load">
+    For each load in priority order:
+    - Skip if already ON
+    - Skip if surplus < `min_surplus_w`
+    - Skip if cooldown period hasn't elapsed
+    - Return first eligible load
+  </Step>
+</Steps>
+
+### Turn Off Decision
+
+**Function Signature** (engine.py:80-89):
+```python
+def decide_turn_off(
+    *,
+    now: datetime,
+    grid_import_w: int,
+    import_duration_min: int,
+    import_threshold_w: int,
+    duration_threshold_min: int,
+    loads: list[LoadConfig],
+    runtimes: dict[str, LoadRuntime],
+) -> EngineAction | None:
+```
+
+**Logic** (engine.py:90-108):
+```python
+"""Pick lowest-priority ON load eligible to turn off."""
+if grid_import_w < max(0, import_threshold_w):
+    return None
+if import_duration_min < max(1, duration_threshold_min):
+    return None
+
+candidates = sorted(loads, key=lambda item: item.priority, reverse=True)
+for load in candidates:
+    runtime = runtimes[load.entity_id]
+    if not runtime.is_on:
+        continue
+    if not _min_on_time_passed(now, runtime, load.min_on_time_min):
+        continue
+    return EngineAction(
+        action="turn_off",
+        entity_id=load.entity_id,
+        reason=f"import {grid_import_w}W for {import_duration_min} min",
+    )
+return None
+```
+
+<Steps>
+  <Step title="Check Import Conditions">
+    Only proceed if:
+    - Importing > `import_threshold_w` (default: 800W)
+    - Importing for at least `duration_threshold_min` (default: 10 minutes)
+  </Step>
+  
+  <Step title="Sort by Priority (Reverse)">
+    Sort loads by priority in reverse (highest number = turn off first)
+  </Step>
+  
+  <Step title="Find Eligible Load">
+    For each load in reverse priority order:
+    - Skip if already OFF
+    - Skip if hasn't been on for at least `min_on_time_min`
+    - Return first eligible load
+  </Step>
+</Steps>
+
+## Anti-Flapping Protection
+
+Two mechanisms prevent rapid cycling:
+
+### Minimum On Time
+
+**Check Function** (engine.py:44-47):
+```python
+def _min_on_time_passed(now: datetime, runtime: LoadRuntime, min_on_time_min: int) -> bool:
+    if runtime.last_on is None:
+        return True
+    return (now - runtime.last_on).total_seconds() >= max(0, min_on_time_min) * 60
+```
+
+<Card title="Purpose" icon="clock">
+  Prevents turning OFF a load that was recently turned ON. Ensures loads run for at least `min_on_time_min` minutes before being eligible for shutdown.
+</Card>
+
+### Cooldown Period
+
+**Check Function** (engine.py:38-41):
+```python
+def _cooldown_passed(now: datetime, runtime: LoadRuntime, cooldown_min: int) -> bool:
+    if runtime.last_off is None:
+        return True
+    return (now - runtime.last_off).total_seconds() >= max(0, cooldown_min) * 60
+```
+
+<Card title="Purpose" icon="snowflake">
+  Prevents turning ON a load that was recently turned OFF. Ensures at least `cooldown_min` minutes pass between cycles to protect equipment.
+</Card>
+
+## Optimization Strategies
+
+The system supports two primary strategies that control decision priority:
+
+### Maximize Self-Consumption (Default)
+
+**Constant** (const.py:37, 43):
+```python
+DEFAULT_STRATEGY = "maximize_self_consumption"
+STRATEGY_MAXIMIZE_SELF_CONSUMPTION = "maximize_self_consumption"
+```
+
+**Execution Order** (coordinator.py:292-307):
+```python
+action = decide_turn_on(
+    now=now,
+    surplus_w=surplus_w,
+    export_duration_min=export_duration_min,
+    min_surplus_duration_min=duration_threshold_min,
+    loads=loads,
+    runtimes=runtimes,
+) or decide_turn_off(
+    now=now,
+    grid_import_w=grid_import_w,
+    import_duration_min=import_duration_min,
+    import_threshold_w=import_threshold_w,
+    duration_threshold_min=duration_threshold_min,
+    loads=loads,
+    runtimes=runtimes,
+)
+```
+
+<Info>
+Prioritizes **turning loads ON** when surplus is available. Only turns loads OFF if no loads can be turned ON.
+</Info>
+
+### Avoid Grid Import
+
+**Constant** (const.py:44):
+```python
+STRATEGY_AVOID_GRID_IMPORT = "avoid_grid_import"
+```
+
+**Execution Order** (coordinator.py:274-290):
+```python
+action = decide_turn_off(
+    now=now,
+    grid_import_w=grid_import_w,
+    import_duration_min=import_duration_min,
+    import_threshold_w=import_threshold_w,
+    duration_threshold_min=duration_threshold_min,
+    loads=loads,
+    runtimes=runtimes,
+) or decide_turn_on(
+    now=now,
+    surplus_w=surplus_w,
+    export_duration_min=export_duration_min,
+    min_surplus_duration_min=duration_threshold_min,
+    loads=loads,
+    runtimes=runtimes,
+)
+```
+
+<Info>
+Prioritizes **turning loads OFF** when importing from grid. Only turns loads ON if no loads can be turned OFF.
+</Info>
+
+## Action Execution
+
+When the engine returns an action, the coordinator executes it:
+
+**Execution Logic** (coordinator.py:309-327):
+```python
+if action is None:
+    return
+
+service = "turn_on" if action.action == "turn_on" else "turn_off"
+await self.hass.services.async_call(
+    "homeassistant",
+    service,
+    {"entity_id": action.entity_id},
+    blocking=False,
+)
+if action.action == "turn_on":
+    self._load_last_on[action.entity_id] = now
+else:
+    self._load_last_off[action.entity_id] = now
+
+self._last_action = (
+    f"Turned {action.action.upper().replace('TURN_', '')} {action.entity_id} ({action.reason})"
+)
+_LOGGER.info("Optimization action: %s", self._last_action)
+```
+
+<Steps>
+  <Step title="Call Service">
+    Execute `homeassistant.turn_on` or `homeassistant.turn_off` on the target entity
+  </Step>
+  
+  <Step title="Update Timestamps">
+    Record `last_on` or `last_off` timestamp for anti-flapping checks
+  </Step>
+  
+  <Step title="Log Action">
+    Update `last_action` sensor and write to Home Assistant logs
+  </Step>
+</Steps>
+
+## Last Action Tracking
+
+### Last Action Sensor
+```yaml
+sensor.energy_control_pro_last_action
+```
+
+**Entity Details** (sensor.py:85-89):
+- **Icon**: `mdi:clipboard-text-clock-outline`
+- **Key**: `last_action`
+
+Shows the most recent optimization action with reason:
+
+<CodeGroup>
+```text Turn On Example
+Turned ON switch.water_heater (surplus 2450W for 12 min)
+```
+
+```text Turn Off Example
+Turned OFF switch.pool_pump (import 950W for 15 min)
+```
+
+```text No Actions
+No actions yet
+```
+</CodeGroup>
+
+## Runtime Control
+
+Optimization can be toggled at runtime using the switch entity or select entity:
+
+### Enable/Disable
+
+**Coordinator Method** (coordinator.py:133-138):
+```python
+async def async_set_optimization_enabled(self, enabled: bool) -> None:
+    """Update optimization runtime status."""
+    self._optimization_enabled = enabled
+    if not enabled:
+        self._last_action = "Optimization OFF"
+    self.async_set_updated_data({**(self.data or {}), "optimization_enabled": enabled})
+```
+
+### Change Strategy
+
+**Coordinator Method** (coordinator.py:140-143):
+```python
+async def async_set_strategy(self, strategy: str) -> None:
+    """Update optimization strategy runtime value."""
+    self._strategy = strategy
+    self.async_set_updated_data({**(self.data or {}), "strategy": strategy})
+```
+
+## Example Configuration
+
+```yaml
+load_1_entity: switch.water_heater
+load_1_min_surplus_w: 2000
+load_1_min_on_time_min: 30
+load_1_cooldown_min: 60
+load_1_priority: 1
+
+load_2_entity: switch.pool_pump
+load_2_min_surplus_w: 1500
+load_2_min_on_time_min: 15
+load_2_cooldown_min: 30
+load_2_priority: 2
+
+load_3_entity: switch.ev_charger
+load_3_min_surplus_w: 2500
+load_3_min_on_time_min: 60
+load_3_cooldown_min: 120
+load_3_priority: 3
+```
+
+<Card title="Priority Behavior" icon="list-ol">
+  With this configuration:
+  - **Water heater** turns on first (priority 1) when 2000W surplus available
+  - **Pool pump** turns on second (priority 2) when 1500W surplus available
+  - **EV charger** turns on last (priority 3) when 2500W surplus available
+  - When importing, **EV charger** turns off first (highest priority number)
+</Card>
+
+## Load Configuration Reading
+
+**Loading Logic** (coordinator.py:329-371):
+```python
+def _load_configs(self) -> list[LoadConfig]:
+    """Read configured load slots from options."""
+    slots = (
+        (
+            CONF_LOAD_1_ENTITY,
+            CONF_LOAD_1_MIN_SURPLUS_W,
+            CONF_LOAD_1_MIN_ON_TIME_MIN,
+            CONF_LOAD_1_COOLDOWN_MIN,
+            CONF_LOAD_1_PRIORITY,
+            1,
+        ),
+        # ... load 2 and 3 ...
+    )
+    loads: list[LoadConfig] = []
+    for entity_key, surplus_key, min_on_key, cooldown_key, priority_key, default_priority in slots:
+        entity_id = str(self._get_option(entity_key, "") or "").strip()
+        if not entity_id:
+            continue
+        loads.append(
+            LoadConfig(
+                entity_id=entity_id,
+                min_surplus_w=int(self._get_option(surplus_key, DEFAULT_LOAD_MIN_SURPLUS_W)),
+                min_on_time_min=int(self._get_option(min_on_key, DEFAULT_LOAD_MIN_ON_TIME_MIN)),
+                cooldown_min=int(self._get_option(cooldown_key, DEFAULT_LOAD_COOLDOWN_MIN)),
+                priority=int(self._get_option(priority_key, default_priority)),
+            )
+        )
+    return loads
+```
+
+<Note>
+Only loads with a configured `entity_id` are loaded. Empty slots are automatically skipped.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Energy Monitoring" icon="chart-line" href="/features/energy-monitoring">
+    Understand the sensor data driving optimization
+  </Card>
+  <Card title="Alerts" icon="bell" href="/features/alerts">
+    Configure notifications for energy events
+  </Card>
+  <Card title="Configuration" icon="gear" href="/api/optimization-config">
+    Set up load entities and thresholds
+  </Card>
+  <Card title="Strategies" icon="chess" href="/guides/optimization-strategies">
+    Learn about optimization strategies
+  </Card>
+</CardGroup>

@@ -1,0 +1,310 @@
+---
+title: 'Optimization Load Configuration'
+description: 'LoadConfig dataclass and per-load optimization settings'
+---
+
+## Overview
+
+The optimization engine uses the `LoadConfig` dataclass to define the configuration for each controllable load. Energy Control Pro supports up to 3 load slots, each with independent configuration.
+
+## LoadConfig Dataclass
+
+Defined in `optimization/engine.py`, the `LoadConfig` dataclass represents the static configuration for a single controllable load:
+
+```python
+@dataclass(frozen=True)
+class LoadConfig:
+    """Static config for one controllable load."""
+
+    entity_id: str
+    min_surplus_w: int
+    min_on_time_min: int
+    cooldown_min: int
+    priority: int
+```
+
+### Fields
+
+<ParamField path="entity_id" type="string" required>
+  The Home Assistant entity ID of the switch or input_boolean to control.
+  
+  Must be a valid Home Assistant entity from the `switch` or `input_boolean` domain.
+  
+  Example: `"switch.water_heater"` or `"input_boolean.pool_pump"`
+</ParamField>
+
+<ParamField path="min_surplus_w" type="number" required default="1200">
+  Minimum solar surplus power in watts required to turn on this load.
+  
+  The optimization engine will only turn on this load when the grid export (surplus solar) exceeds this threshold for the configured duration.
+  
+  Default: `DEFAULT_LOAD_MIN_SURPLUS_W = 1200`  
+  Range: 0-20000W
+  
+  Example: For a 1500W water heater, set to `1500` or slightly higher to ensure sufficient surplus.
+</ParamField>
+
+<ParamField path="min_on_time_min" type="number" required default="10">
+  Minimum time in minutes the load must remain on once turned on.
+  
+  This prevents the optimization engine from rapidly cycling loads on and off. Once a load is turned on, it will not be turned off until this duration has elapsed, even if solar surplus drops.
+  
+  Default: `DEFAULT_LOAD_MIN_ON_TIME_MIN = 10`  
+  Range: 0-180 minutes
+  
+  Example: Set to `30` for a water heater that needs at least 30 minutes to heat effectively.
+</ParamField>
+
+<ParamField path="cooldown_min" type="number" required default="10">
+  Minimum time in minutes between turning off and allowing the load to turn on again.
+  
+  After the load is turned off, this cooldown period must elapse before the optimization engine will consider turning it on again, even if there is sufficient surplus.
+  
+  Default: `DEFAULT_LOAD_COOLDOWN_MIN = 10`  
+  Range: 0-180 minutes
+  
+  Example: Set to `60` for equipment that shouldn't cycle frequently, like HVAC compressors.
+</ParamField>
+
+<ParamField path="priority" type="number" required>
+  Load priority level (1-3). Lower numbers indicate higher priority.
+  
+  The optimization engine uses priority to decide which loads to turn on/off:
+  - **Turn on:** Highest priority (lowest number) eligible load is turned on first
+  - **Turn off:** Lowest priority (highest number) load is turned off first during grid import
+  
+  Default priorities: Load 1 = 1, Load 2 = 2, Load 3 = 3  
+  Range: 1-3
+  
+  Example: Assign priority 1 to critical loads (water heater), priority 2 to medium loads (pool pump), priority 3 to optional loads (car charger).
+</ParamField>
+
+## Load Slot Configuration
+
+Energy Control Pro provides 3 load slots, each configured through the config flow UI or configuration options.
+
+### Load Slot 1
+
+<ParamField path="load_1_entity" type="string">
+  Entity ID for the first controllable load.
+  
+  Constant: `CONF_LOAD_1_ENTITY`
+</ParamField>
+
+<ParamField path="load_1_min_surplus_w" type="number" default="1200">
+  Minimum surplus watts for Load 1.
+  
+  Constant: `CONF_LOAD_1_MIN_SURPLUS_W`
+</ParamField>
+
+<ParamField path="load_1_min_on_time_min" type="number" default="10">
+  Minimum on time in minutes for Load 1.
+  
+  Constant: `CONF_LOAD_1_MIN_ON_TIME_MIN`
+</ParamField>
+
+<ParamField path="load_1_cooldown_min" type="number" default="10">
+  Cooldown period in minutes for Load 1.
+  
+  Constant: `CONF_LOAD_1_COOLDOWN_MIN`
+</ParamField>
+
+<ParamField path="load_1_priority" type="number" default="1">
+  Priority level for Load 1.
+  
+  Constant: `CONF_LOAD_1_PRIORITY`  
+  Default: 1 (highest priority)
+</ParamField>
+
+### Load Slot 2
+
+<ParamField path="load_2_entity" type="string">
+  Entity ID for the second controllable load.
+  
+  Constant: `CONF_LOAD_2_ENTITY`
+</ParamField>
+
+<ParamField path="load_2_min_surplus_w" type="number" default="1200">
+  Minimum surplus watts for Load 2.
+  
+  Constant: `CONF_LOAD_2_MIN_SURPLUS_W`
+</ParamField>
+
+<ParamField path="load_2_min_on_time_min" type="number" default="10">
+  Minimum on time in minutes for Load 2.
+  
+  Constant: `CONF_LOAD_2_MIN_ON_TIME_MIN`
+</ParamField>
+
+<ParamField path="load_2_cooldown_min" type="number" default="10">
+  Cooldown period in minutes for Load 2.
+  
+  Constant: `CONF_LOAD_2_COOLDOWN_MIN`
+</ParamField>
+
+<ParamField path="load_2_priority" type="number" default="2">
+  Priority level for Load 2.
+  
+  Constant: `CONF_LOAD_2_PRIORITY`  
+  Default: 2 (medium priority)
+</ParamField>
+
+### Load Slot 3
+
+<ParamField path="load_3_entity" type="string">
+  Entity ID for the third controllable load.
+  
+  Constant: `CONF_LOAD_3_ENTITY`
+</ParamField>
+
+<ParamField path="load_3_min_surplus_w" type="number" default="1200">
+  Minimum surplus watts for Load 3.
+  
+  Constant: `CONF_LOAD_3_MIN_SURPLUS_W`
+</ParamField>
+
+<ParamField path="load_3_min_on_time_min" type="number" default="10">
+  Minimum on time in minutes for Load 3.
+  
+  Constant: `CONF_LOAD_3_MIN_ON_TIME_MIN`
+</ParamField>
+
+<ParamField path="load_3_cooldown_min" type="number" default="10">
+  Cooldown period in minutes for Load 3.
+  
+  Constant: `CONF_LOAD_3_COOLDOWN_MIN`
+</ParamField>
+
+<ParamField path="load_3_priority" type="number" default="3">
+  Priority level for Load 3.
+  
+  Constant: `CONF_LOAD_3_PRIORITY`  
+  Default: 3 (lowest priority)
+</ParamField>
+
+## Configuration Examples
+
+### Example 1: Water Heater (High Priority)
+
+```python
+LoadConfig(
+    entity_id="switch.water_heater",
+    min_surplus_w=1500,      # Requires 1500W surplus
+    min_on_time_min=30,      # Stay on for at least 30 minutes
+    cooldown_min=60,         # Wait 1 hour between cycles
+    priority=1               # Highest priority
+)
+```
+
+### Example 2: Pool Pump (Medium Priority)
+
+```python
+LoadConfig(
+    entity_id="switch.pool_pump",
+    min_surplus_w=800,       # Requires 800W surplus
+    min_on_time_min=120,     # Stay on for at least 2 hours
+    cooldown_min=30,         # Wait 30 minutes between cycles
+    priority=2               # Medium priority
+)
+```
+
+### Example 3: EV Charger (Low Priority)
+
+```python
+LoadConfig(
+    entity_id="switch.ev_charger",
+    min_surplus_w=3000,      # Requires 3000W surplus
+    min_on_time_min=60,      # Stay on for at least 1 hour
+    cooldown_min=15,         # Wait 15 minutes between cycles
+    priority=3               # Lowest priority
+)
+```
+
+## Usage in Optimization Engine
+
+The optimization engine uses these configurations in two decision functions:
+
+### Turn On Decision
+
+From `optimization/engine.py:50-77`, the `decide_turn_on` function:
+
+```python
+def decide_turn_on(
+    *,
+    now: datetime,
+    surplus_w: int,
+    export_duration_min: int,
+    min_surplus_duration_min: int,
+    loads: list[LoadConfig],
+    runtimes: dict[str, LoadRuntime],
+) -> EngineAction | None:
+    """Pick highest-priority OFF load eligible to turn on."""
+```
+
+The engine:
+1. Checks if export duration meets the threshold
+2. Sorts loads by priority (lowest number first)
+3. Finds the first eligible OFF load where:
+   - Surplus exceeds `min_surplus_w`
+   - Cooldown period has elapsed
+4. Returns action to turn on that load
+
+### Turn Off Decision
+
+From `optimization/engine.py:80-108`, the `decide_turn_off` function:
+
+```python
+def decide_turn_off(
+    *,
+    now: datetime,
+    grid_import_w: int,
+    import_duration_min: int,
+    import_threshold_w: int,
+    duration_threshold_min: int,
+    loads: list[LoadConfig],
+    runtimes: dict[str, LoadRuntime],
+) -> EngineAction | None:
+    """Pick lowest-priority ON load eligible to turn off."""
+```
+
+The engine:
+1. Checks if grid import exceeds threshold for required duration
+2. Sorts loads by priority in reverse (highest number first)
+3. Finds the first eligible ON load where:
+   - Minimum on time has elapsed
+4. Returns action to turn off that load
+
+## Related Dataclasses
+
+### LoadRuntime
+
+Tracks the runtime state of each load:
+
+```python
+@dataclass(frozen=True)
+class LoadRuntime:
+    """Runtime state for one controllable load."""
+
+    is_on: bool
+    last_on: datetime | None
+    last_off: datetime | None
+```
+
+### EngineAction
+
+Represents an action decision returned by the engine:
+
+```python
+@dataclass(frozen=True)
+class EngineAction:
+    """Action decision returned by engine."""
+
+    action: str          # "turn_on" or "turn_off"
+    entity_id: str       # Entity to control
+    reason: str          # Human-readable reason
+```
+
+## See Also
+
+- [Configuration Options](/api/configuration-options) - All integration configuration options
+- [Optimization Strategies](/guides/optimization-strategies) - Strategy selection and behavior

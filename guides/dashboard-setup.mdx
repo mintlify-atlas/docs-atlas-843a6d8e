@@ -1,0 +1,389 @@
+---
+title: Dashboard Setup
+description: Import and configure the Energy Control Pro dashboard to visualize energy flow and optimization state
+---
+
+Energy Control Pro includes a pre-built Lovelace dashboard that provides real-time visualization of your energy flow, grid status, and optimization decisions.
+
+## Dashboard Overview
+
+The dashboard is located in the source repository:
+
+```
+dashboards/energy_control_pro_overview.yaml
+```
+
+It displays:
+- **Power snapshot**: Current values for solar, load, grid import/export, and surplus
+- **24-hour history graph**: Power flows over the last day
+- **Grid status card**: Live import/export state with dynamic messages
+
+## Importing the Dashboard
+
+<Steps>
+  <Step title="Locate the dashboard file">
+    If you installed via HACS, the dashboard file is in your custom components directory:
+    
+    ```
+    /config/custom_components/energy_control_pro/dashboards/energy_control_pro_overview.yaml
+    ```
+    
+    Alternatively, download it from the [GitHub repository](https://github.com/springerd/energy-control-pro/tree/main/dashboards).
+  </Step>
+  
+  <Step title="Open the file contents">
+    Copy the entire contents of `energy_control_pro_overview.yaml`.
+  </Step>
+  
+  <Step title="Create a new dashboard in Home Assistant">
+    1. Navigate to **Settings → Dashboards**
+    2. Click **Add Dashboard** (bottom right)
+    3. Choose **New dashboard from scratch**
+    4. Enter a title: `Energy Control Pro Overview`
+    5. Click **Create**
+  </Step>
+  
+  <Step title="Switch to YAML mode">
+    1. Click the pencil icon (Edit Dashboard)
+    2. Click the three-dot menu (top right)
+    3. Select **Raw configuration editor**
+  </Step>
+  
+  <Step title="Paste the dashboard configuration">
+    1. Replace all existing content with the copied YAML
+    2. Click **Save**
+    3. Exit the editor
+  </Step>
+</Steps>
+
+## Dashboard Components
+
+### Power Snapshot Card
+
+Displays current power values from all integration sensors:
+
+```yaml
+- type: entities
+  title: Power Snapshot
+  show_header_toggle: false
+  entities:
+    - entity: sensor.energy_control_pro_solar_w
+      name: Solar
+    - entity: sensor.energy_control_pro_load_w
+      name: Load
+    - entity: sensor.energy_control_pro_grid_import_w
+      name: Grid Import
+    - entity: sensor.energy_control_pro_grid_export_w
+      name: Grid Export
+    - entity: sensor.energy_control_pro_surplus_w
+      name: Surplus
+```
+
+**Sensors shown:**
+- **Solar**: Current solar production (W)
+- **Load**: Current home consumption (W)
+- **Grid Import**: Power being imported from grid (W, 0 when exporting)
+- **Grid Export**: Power being exported to grid (W, 0 when importing)
+- **Surplus**: Solar - Load (can be negative)
+
+### Power Flows History Graph
+
+Visualizes 24 hours of energy data:
+
+```yaml
+- type: history-graph
+  title: Power Flows (24h)
+  hours_to_show: 24
+  refresh_interval: 60
+  entities:
+    - entity: sensor.energy_control_pro_solar_w
+      name: Solar
+    - entity: sensor.energy_control_pro_load_w
+      name: Load
+    - entity: sensor.energy_control_pro_grid_import_w
+      name: Grid Import
+    - entity: sensor.energy_control_pro_grid_export_w
+      name: Grid Export
+```
+
+**Features:**
+- Shows trends over the past day
+- Refreshes every 60 seconds
+- Overlays all power flows for easy comparison
+- Helps identify patterns in solar production and consumption
+
+### Grid Status Card
+
+A dynamic markdown card showing real-time grid interaction:
+
+```yaml
+- type: markdown
+  title: Grid Status
+  entity_id:
+    - sensor.energy_control_pro_grid_import_w
+    - sensor.energy_control_pro_grid_export_w
+  content: >
+    {% set imp = states('sensor.energy_control_pro_grid_import_w') | int(0) %}
+    {% set exp = states('sensor.energy_control_pro_grid_export_w') | int(0) %}
+    {% if imp > 0 %}
+    **Status:** Importing from grid ({{ imp }} W)
+    {% elif exp > 0 %}
+    **Status:** Exporting to grid ({{ exp }} W)
+    {% else %}
+    **Status:** Balanced (0 W import/export)
+    {% endif %}
+```
+
+**Dynamic messages:**
+- **Importing**: Shows when drawing power from grid with exact wattage
+- **Exporting**: Shows when sending power to grid with exact wattage
+- **Balanced**: Shows when grid interaction is minimal (< 100W)
+
+## Customizing the Dashboard
+
+### Adding Optimization Controls
+
+Include the optimization switch and strategy selector:
+
+```yaml
+- type: entities
+  title: Optimization Control
+  show_header_toggle: false
+  entities:
+    - entity: switch.energy_control_pro_optimization
+      name: Optimization Enabled
+    - entity: select.energy_control_pro_strategy
+      name: Strategy
+    - entity: sensor.energy_control_pro_last_action
+      name: Last Action
+```
+
+**Provides:**
+- Toggle to enable/disable optimization
+- Dropdown to change strategy in real-time
+- Display of the most recent optimization decision
+
+### Adding Energy State Information
+
+Show current energy state and duration:
+
+```yaml
+- type: entities
+  title: Energy State
+  show_header_toggle: false
+  entities:
+    - entity: sensor.energy_control_pro_energy_state
+      name: Current State
+    - entity: sensor.energy_control_pro_import_duration_min
+      name: Import Duration (min)
+    - entity: sensor.energy_control_pro_export_duration_min
+      name: Export Duration (min)
+```
+
+**Shows:**
+- Current state: `importing`, `exporting`, or `balanced`
+- How long the current import condition has persisted
+- How long the current export condition has persisted
+
+### Adding Load Status Cards
+
+Monitor your controlled loads:
+
+```yaml
+- type: entities
+  title: Controlled Loads
+  show_header_toggle: false
+  entities:
+    - entity: switch.boiler
+      name: Water Heater
+    - entity: switch.pool_pump
+      name: Pool Pump
+    - entity: switch.ev_charger
+      name: EV Charger
+```
+
+<Note>
+Replace entity IDs with your actual load entities configured in the integration.
+</Note>
+
+### Changing Time Range
+
+Adjust the history graph duration:
+
+```yaml
+- type: history-graph
+  title: Power Flows (48h)  # Changed from 24h
+  hours_to_show: 48          # Changed from 24
+  refresh_interval: 60
+  # ... entities ...
+```
+
+Common ranges:
+- `12`: Half day
+- `24`: Full day (default)
+- `48`: Two days
+- `168`: Full week
+
+## Mobile Optimization
+
+The default dashboard works on mobile, but you can optimize it:
+
+### Stack Cards Vertically
+
+Use a vertical stack for better mobile viewing:
+
+```yaml
+- type: vertical-stack
+  cards:
+    - type: entities
+      title: Power Snapshot
+      entities:
+        # ... sensors ...
+    
+    - type: markdown
+      title: Grid Status
+      # ... content ...
+```
+
+### Reduce History Graph Height
+
+```yaml
+- type: history-graph
+  title: Power Flows (24h)
+  hours_to_show: 24
+  refresh_interval: 60
+  card_mod:
+    style: |
+      ha-card {
+        height: 200px;
+      }
+  entities:
+    # ... sensors ...
+```
+
+## Monitoring Optimization State
+
+The dashboard helps you understand when and why the integration takes action:
+
+### Watch for Actions
+
+`sensor.energy_control_pro_last_action` updates with messages like:
+
+- `"Turned ON switch.boiler (surplus 1100W for 10 min)"`
+- `"Turned OFF switch.pool_pump (import 900W for 10 min)"`
+- `"No actions yet"` (initial state)
+- `"Optimization OFF"` (when disabled)
+
+### Correlate with Energy State
+
+Observe how `sensor.energy_control_pro_energy_state` changes:
+
+1. **Solar increases** → State becomes `exporting`
+2. **Export duration reaches 10 min** → Integration turns ON a load
+3. **State returns to `balanced`** or `importing`
+4. **Import duration reaches 10 min** → Integration turns OFF a load
+
+### Use Duration Sensors
+
+Track how long conditions persist:
+
+- `sensor.energy_control_pro_import_duration_min`: Resets when state leaves `importing`
+- `sensor.energy_control_pro_export_duration_min`: Resets when state leaves `exporting`
+
+Actions only trigger after these durations exceed your configured `duration_threshold_min` (default: 10 minutes).
+
+## Troubleshooting Dashboard Issues
+
+### Entities not found
+
+**Problem**: Dashboard shows "Entity not available: sensor.energy_control_pro_solar_w"
+
+**Solution**:
+<Steps>
+  <Step title="Verify integration is loaded">
+    Go to **Settings → Devices & Services** and check that Energy Control Pro is configured.
+  </Step>
+  
+  <Step title="Check entity names">
+    Open **Developer Tools → States** and search for `energy_control_pro`. Verify sensor names match the dashboard.
+  </Step>
+  
+  <Step title="Restart Home Assistant">
+    If the integration was just added, restart to ensure all entities are created.
+  </Step>
+</Steps>
+
+### Graph not showing data
+
+**Problem**: History graph is empty or shows no lines.
+
+**Solution**:
+<Steps>
+  <Step title="Wait for data collection">
+    Home Assistant needs at least a few minutes of data before the graph displays.
+  </Step>
+  
+  <Step title="Check recorder">
+    Ensure the recorder integration is enabled and not excluding `energy_control_pro` sensors.
+  </Step>
+  
+  <Step title="Verify sensor updates">
+    Check that sensors are updating in **Developer Tools → States**. Look for recent `last_changed` timestamps.
+  </Step>
+</Steps>
+
+### Grid status shows incorrect state
+
+**Problem**: Status says "Balanced" when clearly importing or exporting.
+
+**Solution**:
+
+The threshold for "balanced" is 100W (defined in `const.py:35` as `DEFAULT_STATE_THRESHOLD_W`).
+
+If import or export is below 100W, the integration considers it balanced. This is intentional to avoid noise from minor fluctuations.
+
+To see the exact values, look at the **Power Snapshot** card, which always shows precise numbers.
+
+## Advanced Dashboard Features
+
+### Energy Flow Sankey Diagram
+
+Create a visual flow diagram using the [Sankey Chart card](https://github.com/MindFreeze/ha-sankey-chart):
+
+```yaml
+- type: custom:sankey-chart
+  sections:
+    - entities:
+        - entity_id: sensor.energy_control_pro_solar_w
+          children:
+            - sensor.energy_control_pro_load_w
+            - sensor.energy_control_pro_grid_export_w
+```
+
+### Apex Charts for Advanced Visualization
+
+Use [ApexCharts card](https://github.com/RomRider/apexcharts-card) for more detailed graphs:
+
+```yaml
+- type: custom:apexcharts-card
+  header:
+    title: Energy Balance
+    show: true
+  graph_span: 24h
+  series:
+    - entity: sensor.energy_control_pro_solar_w
+      name: Solar
+      color: orange
+    - entity: sensor.energy_control_pro_load_w
+      name: Load
+      color: blue
+    - entity: sensor.energy_control_pro_surplus_w
+      name: Surplus
+      color: green
+```
+
+## Next Steps
+
+- [Review optimization strategies](/guides/optimization-strategies) to understand dashboard behavior
+- [Configure alerts](/features/alerts) to receive notifications for sustained conditions
+- [Troubleshoot issues](/guides/troubleshooting) if sensors or optimization aren't working as expected

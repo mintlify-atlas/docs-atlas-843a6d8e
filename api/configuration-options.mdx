@@ -1,0 +1,206 @@
+---
+title: 'Configuration Options'
+description: 'Complete reference for all Energy Control Pro configuration options'
+---
+
+## Overview
+
+This page documents all configuration options available in Energy Control Pro, including their constant names, default values, and valid options.
+
+## Core Configuration
+
+### Simulation Mode
+
+<ParamField path="simulation" type="boolean" default="false">
+  Enable simulation mode to test the integration with synthetic solar and load profiles instead of real sensors.
+  
+  Constant: `CONF_SIMULATION`
+</ParamField>
+
+### Profile Selection
+
+<ParamField path="profile" type="string" default="sunny_day">
+  Solar profile to use when simulation mode is enabled. Choose from predefined daily patterns.
+  
+  Constant: `CONF_PROFILE`
+  
+  Valid options:
+  - `sunny_day` - High solar production throughout the day (const: `PROFILE_SUNNY_DAY`)
+  - `cloudy_day` - Variable solar production with clouds (const: `PROFILE_CLOUDY_DAY`)
+  - `winter_day` - Low solar production winter pattern (const: `PROFILE_WINTER_DAY`)
+</ParamField>
+
+## Entity Configuration
+
+### Solar Power Entity
+
+<ParamField path="solar_power_entity" type="string">
+  Home Assistant sensor entity that reports solar power production in watts (W) or kilowatts (kW). Required when simulation mode is disabled.
+  
+  Constant: `CONF_SOLAR_POWER_ENTITY`
+  
+  Example: `sensor.solar_power`
+</ParamField>
+
+### Load Power Entity
+
+<ParamField path="load_power_entity" type="string">
+  Home Assistant sensor entity that reports grid import/export power in watts (W) or kilowatts (kW). Positive values indicate grid import, negative values indicate grid export. Required when simulation mode is disabled.
+  
+  Constant: `CONF_LOAD_POWER_ENTITY`
+  
+  Example: `sensor.grid_power`
+</ParamField>
+
+## Threshold Configuration
+
+### Import Threshold
+
+<ParamField path="import_threshold_w" type="number" default="800">
+  Grid import power threshold in watts. The system triggers import alerts when grid import exceeds this value for the configured duration.
+  
+  Constant: `CONF_IMPORT_THRESHOLD_W`  
+  Default: `DEFAULT_IMPORT_THRESHOLD_W = 800`
+  
+  Range: 0-20000W (step: 100W)
+</ParamField>
+
+### Export Threshold
+
+<ParamField path="export_threshold_w" type="number" default="800">
+  Grid export power threshold in watts. The system triggers export alerts when grid export exceeds this value for the configured duration.
+  
+  Constant: `CONF_EXPORT_THRESHOLD_W`  
+  Default: `DEFAULT_EXPORT_THRESHOLD_W = 800`
+  
+  Range: 0-20000W (step: 100W)
+</ParamField>
+
+### Duration Threshold
+
+<ParamField path="duration_threshold_min" type="number" default="10">
+  Minimum duration in minutes that import or export must persist above thresholds before triggering state changes.
+  
+  Constant: `CONF_DURATION_THRESHOLD_MIN`  
+  Default: `DEFAULT_DURATION_THRESHOLD_MIN = 10`
+  
+  Range: 1-180 minutes
+</ParamField>
+
+## Optimization Configuration
+
+### Optimization Enabled
+
+<ParamField path="optimization_enabled" type="boolean" default="false">
+  Enable the load optimization engine to automatically control configured loads based on solar surplus and grid import.
+  
+  Constant: `CONF_OPTIMIZATION_ENABLED`  
+  Default: `DEFAULT_OPTIMIZATION_ENABLED = False`
+</ParamField>
+
+### Optimization Strategy
+
+<ParamField path="strategy" type="string" default="maximize_self_consumption">
+  Strategy used by the optimization engine to control loads.
+  
+  Constant: `CONF_STRATEGY`  
+  Default: `DEFAULT_STRATEGY = "maximize_self_consumption"`
+  
+  Valid strategies:
+  - `maximize_self_consumption` - Maximize use of solar energy (const: `STRATEGY_MAXIMIZE_SELF_CONSUMPTION`)
+  - `avoid_grid_import` - Minimize grid import (const: `STRATEGY_AVOID_GRID_IMPORT`)
+  - `balanced` - Balance between self-consumption and grid import avoidance (const: `STRATEGY_BALANCED`)
+</ParamField>
+
+## Load Slot Configuration
+
+Each load slot (1-3) supports the following configuration parameters:
+
+### Load Entity
+
+<ParamField path="load_{n}_entity" type="string">
+  Home Assistant switch or input_boolean entity to control. The optimization engine will turn this entity on/off based on surplus solar or grid import conditions.
+  
+  Constants: `CONF_LOAD_1_ENTITY`, `CONF_LOAD_2_ENTITY`, `CONF_LOAD_3_ENTITY`
+  
+  Example: `switch.water_heater`
+</ParamField>
+
+### Minimum Surplus
+
+<ParamField path="load_{n}_min_surplus_w" type="number" default="1200">
+  Minimum solar surplus in watts required before this load will be turned on.
+  
+  Constants: `CONF_LOAD_1_MIN_SURPLUS_W`, `CONF_LOAD_2_MIN_SURPLUS_W`, `CONF_LOAD_3_MIN_SURPLUS_W`  
+  Default: `DEFAULT_LOAD_MIN_SURPLUS_W = 1200`
+  
+  Range: 0-20000W (step: 100W)
+</ParamField>
+
+### Minimum On Time
+
+<ParamField path="load_{n}_min_on_time_min" type="number" default="10">
+  Minimum time in minutes that the load must stay on once turned on before it can be turned off by the optimization engine.
+  
+  Constants: `CONF_LOAD_1_MIN_ON_TIME_MIN`, `CONF_LOAD_2_MIN_ON_TIME_MIN`, `CONF_LOAD_3_MIN_ON_TIME_MIN`  
+  Default: `DEFAULT_LOAD_MIN_ON_TIME_MIN = 10`
+  
+  Range: 0-180 minutes
+</ParamField>
+
+### Cooldown Period
+
+<ParamField path="load_{n}_cooldown_min" type="number" default="10">
+  Minimum time in minutes that must elapse after turning off before this load can be turned on again.
+  
+  Constants: `CONF_LOAD_1_COOLDOWN_MIN`, `CONF_LOAD_2_COOLDOWN_MIN`, `CONF_LOAD_3_COOLDOWN_MIN`  
+  Default: `DEFAULT_LOAD_COOLDOWN_MIN = 10`
+  
+  Range: 0-180 minutes
+</ParamField>
+
+### Priority
+
+<ParamField path="load_{n}_priority" type="number" default="1, 2, 3">
+  Priority level for this load. Lower numbers have higher priority. When turning on loads with surplus solar, the highest priority (lowest number) eligible load is turned on first. When turning off loads due to grid import, the lowest priority (highest number) load is turned off first.
+  
+  Constants: `CONF_LOAD_1_PRIORITY`, `CONF_LOAD_2_PRIORITY`, `CONF_LOAD_3_PRIORITY`  
+  Defaults: Load 1 = 1, Load 2 = 2, Load 3 = 3
+  
+  Range: 1-3
+</ParamField>
+
+## Additional Constants
+
+### Domain
+
+```python
+DOMAIN = "energy_control_pro"
+```
+
+The Home Assistant integration domain identifier.
+
+### State Threshold
+
+```python
+DEFAULT_STATE_THRESHOLD_W = 100
+```
+
+Default threshold in watts for state transitions (internal use).
+
+## Load Slots Structure
+
+The load configuration is organized in tuples for programmatic access:
+
+```python
+LOAD_SLOTS: tuple[dict[str, str], ...] = (
+    {
+        "entity": CONF_LOAD_1_ENTITY,
+        "min_surplus_w": CONF_LOAD_1_MIN_SURPLUS_W,
+        "min_on_time_min": CONF_LOAD_1_MIN_ON_TIME_MIN,
+        "cooldown_min": CONF_LOAD_1_COOLDOWN_MIN,
+        "priority": CONF_LOAD_1_PRIORITY,
+    },
+    # ... Load 2 and Load 3 slots
+)
+```
